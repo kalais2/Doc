@@ -86,8 +86,8 @@ timeout_param_s timeout_param_s_var;
 
 static ISO9141_14230_QTYPE buffer_type;
 static uint16_t kwp_buffer_length;
-static uint8_t kwp_tx_buffer[255];
-static uint8_t kwp_Rx_buffer[255];
+//static uint8_t kwp_tx_buffer[255];
+//static uint8_t kwp_Rx_buffer[255];
 
 void KWP_reset_TimeOut(void)
 {
@@ -1160,7 +1160,8 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 					
 					/* check send msg, How tx buffer updated ? and needs to check where will clear buffer*/
 					buffer_type = ISO9141_14230_TX_Q;
-					fl_TxByte   = kwp_tx_buffer[0];
+			//		fl_TxByte   = kwp_tx_buffer[0];
+					fl_TxByte   = ISO9141_14230_TxMsg_S_Buffer.Data[l_UARTIntrTxIndex];
 				}
 
 				/* Check for Corruption on the bus */
@@ -1519,13 +1520,15 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 
 					/* Received ECU response byte - Increment length */
 					
-					/* reset timer_count */
-					KWP_reset_TimeOut();
+					/* store Rx data in RxMsg_s Buffer */
+					ISO9141_14230_RxMsg_S_Buffer.Data[l_RxLength] = (uint8_t) l_buffer_recev;
 					
 					l_RxLength++;
 					
+					/* reset timer_count */
+					KWP_reset_TimeOut();
+					
 					/* set P1 MAX for every byte receiving from ECU */
-				
 					KWP_Set_TimeOut(l_P1MAX,P1MAX_WAIT); 
 					
 					
@@ -1549,7 +1552,12 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 						/* adding length in buffer */
 						buffer_type = ISO9141_14230_LEN_Q ;
 						kwp_buffer_length = l_RxLength;
-
+						
+						kwp_RxMsg_received = true ;
+						
+						/* adding length to RxMsg_s Buffer */
+						ISO9141_14230_RxMsg_S_Buffer.Length = l_RxLength;
+						
 						/* Reset Rx Length */
 						l_RxLength = 0;
 
@@ -2353,4 +2361,142 @@ ISO9141_14230_RETCODE ISO9141_14230_WriteMsg(ISO9141_14230_TxMsg_S
 	return fl_RetCode;
 }
 
+void ISO9141_14230_RxTask(void)
+{
+	uint8_t fl_ChkSum;
+	uint16_t l_Chk78Length = 0, l_Chk78Frame = 0, l_Chk78Index = 0;
+	
+	
+	ISO9141_14230_RxMsg_S_Buffer.Flags = 0;
+	
+	    /* Poll the Length Queue only if not in Fast or Five Baud Initialization */
+    if(l_InitStatus != LINKINIT_PENDING)
+	{
+		/* checking RxMSg received flag */
+		if(kwp_RxMsg_received != false)
+		{
+			if(CHECK_BITU8(l_ConnectFlags, BIT_CHKSUM) == FALSE)
+			{
+				/* Obtain the checksum for Rx data */
+				fl_ChkSum = ISO9141_14230_GetChecksum(ISO9141_14230_RxMsg_S_Buffer.Data,ISO9141_14230_RxMsg_S_Buffer.Length,CHKSUM_RXDATA);
+				
+				/* If Checksum is ok */
+				if(fl_ChkSum == CHECKSUM_OK)
+				{
+					/* Update length */
+					ISO9141_14230_RxMsg_S_Buffer.Length--;
 
+					   /* Remove the checksum byte - Update only data*/
+					   ISO9141_14230_RxMsg_S_Buffer.Data[ISO9141_14230_RxMsg_S_Buffer.Length] = 0;
+
+					   /* Update the Rx timestamp to the Rx frame */
+		//             ISO9141_14230_DelFromQ(ISO9141_14230_TIME_Q,(ISO9141_14230_Q_S *) &fl_ISO9141_14230Rx_S.Timestamp);
+		#if 0
+					   /* Check if the message qualifies for the filter */
+					   if(J2534_checkFilter(&fl_ISO9141_14230Rx_S.Data[0], fl_ISO9141_14230Rx_S.Length,GARUDA_KWP_CH1) == J2534_PASS)
+					   {
+						   /* Store the message onto the Rx queue */
+						   fl_RxQStatus = ISO9141_14230_AddToQ(ISO9141_14230_RX_Q
+							   , (const ISO9141_14230_Q_S *)&fl_ISO9141_14230Rx_S,
+							   0);
+							   
+							kwp_RxMsg_received_checksum = true;
+
+						   /* Report error if RxQ full */
+						   if(ISO9141_14230_Q_FULL == fl_RxQStatus)
+						   {
+							   /* Set Error Code and report to Call back function */
+							   App_ErrHandler(l_ProtocolId, RXQ_OVERFLOW);
+						   }
+					   }
+					   else
+					   {
+					   
+					   }
+		#endif
+						/* after checkfilter implementation, this statement moves to if condition */
+						kwp_RxMsg_received_checksum = true;
+					
+				}
+				/* If checksum not Ok, reported checksum error*/
+				else
+				{
+					if(l_ProtocolId == KWP_PROTOCOL_ID)
+					{
+					   /* Save the total length */
+                       l_Chk78Length = fl_ISO9141_14230Rx_S.Length;
+                       l_Chk78Frame = 0;
+					
+					
+						/* Check for the response $78 */
+						/* doubt this for LOOP requied */
+						for(l_Chk78Index = 0;l_Chk78Index  < l_Chk78Length; l_Chk78Index++)
+						{
+								/* Search if 7F and 78 are in the response */
+								if( (fl_ISO9141_14230Rx_S.Data[l_Chk78Index] == 0x7F) && (fl_ISO9141_14230Rx_S.Data[l_Chk78Index+2] == 0x78))
+								{
+									/* Received 78 response */
+									l_Rxd78 = !FALSE;
+								   
+								}
+						}
+						/* Check for positive response after 78 */
+						if((l_Rxd78 != FALSE) && (l_Chk78Frame < l_Chk78Length))
+						{
+						   
+						}
+		                /* If no 78 detected report error */
+						if(l_Chk78Frame == 0)
+						{
+								
+						}
+
+					}
+					else{
+						 /* Call application error handler */
+					}
+					
+				}
+			}
+			/* If no checksum configured */
+			else
+			{
+				/* Update the Rx timestamp to the Rx frame */
+			//	ISO9141_14230_DelFromQ(ISO9141_14230_TIME_Q,(ISO9141_14230_Q_S *) &fl_ISO9141_14230Rx_S.Timestamp);
+	#if 0
+               /* Check if the message qualifies for the filter */
+               if(J2534_checkFilter(&fl_ISO9141_14230Rx_S.Data[0],fl_ISO9141_14230Rx_S.Length,GARUDA_KWP_CH1) == J2534_PASS)
+               {
+                   /* Store the message onto the Rx queue */
+                //   fl_RxQStatus = ISO9141_14230_AddToQ(ISO9141_14230_RX_Q ,(const ISO9141_14230_Q_S *)&fl_ISO9141_14230Rx_S,0);
+					
+					kwp_RxMsg_received_checksum = true;
+					
+                   /* Report error if RxQ full */
+                   if(ISO9141_14230_Q_FULL == fl_RxQStatus)
+                   {
+                       /* Set Error Code and report to Call back function */
+                       App_ErrHandler(l_ProtocolId, RXQ_OVERFLOW);
+                   }
+               }
+			   else
+			   {
+				   
+			   }
+	#endif		
+				
+				kwp_RxMsg_received_checksum = true;
+			}
+			
+		}
+		else 
+		{
+			/* do nothing */
+		}	
+	}
+	else
+	{
+		/*do nothing */
+	}
+
+}
