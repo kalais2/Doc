@@ -163,6 +163,9 @@
 /* KWP_Time_handler */
 #define TIME_COUNTER_TO_MS (timer_counter*1000)
 
+bool kwp_RxMsg_received = false;
+bool kwp_RxMsg_received_checksum = false;
+
 
 typedef struct {
         uint32_t Baudrate;      /* Baudrate for UART */
@@ -205,6 +208,8 @@ typedef struct {
 
 } ISO9141_14230_RxMsg_S;
 
+ISO9141_14230_RxMsg_S ISO9141_14230_RxMsg_S_Buffer;
+
 /* ISO9141_14230 Tx message structure */
 typedef struct {
 	uint32_t Timestamp;	/* Timestamp for the received msg */
@@ -214,7 +219,7 @@ typedef struct {
 
 } ISO9141_14230_TxMsg_S;
 
-
+ ISO9141_14230_TxMsg_S ISO9141_14230_TxMsg_S_Buffer;
 /* Command Structure */
 typedef struct {
 	uint32_t *pData;	/* Read / Write Address of the
