@@ -163,9 +163,6 @@
 /* KWP_Time_handler */
 #define TIME_COUNTER_TO_MS (timer_counter*1000)
 
-bool kwp_RxMsg_received = false;
-bool kwp_RxMsg_received_checksum = false;
-
 
 typedef struct {
         uint32_t Baudrate;      /* Baudrate for UART */
@@ -208,7 +205,7 @@ typedef struct {
 
 } ISO9141_14230_RxMsg_S;
 
-ISO9141_14230_RxMsg_S ISO9141_14230_RxMsg_S_Buffer;
+
 
 /* ISO9141_14230 Tx message structure */
 typedef struct {
@@ -219,7 +216,9 @@ typedef struct {
 
 } ISO9141_14230_TxMsg_S;
 
- ISO9141_14230_TxMsg_S ISO9141_14230_TxMsg_S_Buffer;
+extern ISO9141_14230_TxMsg_S ISO9141_14230_TxMsg_S_Buffer;
+
+
 /* Command Structure */
 typedef struct {
 	uint32_t *pData;	/* Read / Write Address of the
@@ -251,8 +250,10 @@ typedef enum {
 	INV_KB2_WAIT,
 	INV_ADDR_WAIT,
 	P1MAX_WAIT,
-	P3MIN_WAIT
-	
+	P3MIN_WAIT,
+	P3MIN_P1MAX_WAIT,
+	P2_MAX_TIME_WAIT,
+	P4MIN_WAIT
 }TIMER_WAIT;
 typedef struct {
 	uint32_t timer_param;
@@ -281,6 +282,8 @@ void KWP_Set_TimeOut(uint32_t , TIMER_WAIT );
 void KWP_TimeOut_handle( void );
 gboolean KWP_Timer_Handler(gpointer );
 
+void ISO9141_14230_RxTask(void);
+ISO9141_14230_RETCODE ISO9141_14230_WriteMsg(void);
 
 void ISO9141_14230_Init(const ISO9141_14230_Init_S *);
 ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S*);
@@ -288,8 +291,8 @@ static void ISO9141_14230_LinkInit(void);
 static uint8_t ISO9141_14230_GetChecksum(const uint8_t * , uint16_t , uint8_t);
 static bool ISO9141_14230_GetParity(void);
 
-
-
+void App_FirstByteRxd(uint8_t , uint32_t );
+void PassThruReadMsgResp_KWP (void);
 
 #endif /* _CAN_IF_H_ */
 
