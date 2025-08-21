@@ -18,6 +18,7 @@
 #include	"net_if.h"
 #include	"usbhid.h"
 #include	"led.h"
+//#include        "kwp_if.h"
 
 /* TODO: Move this to Makefile */
 #define GARUDA_USB_DEBUG    0
@@ -109,6 +110,9 @@ static void process_CAN_FD_IOCTL_cmd(uint8_t *);
 
 static buffer_v buffer_t;
 static void process_KWP_IOCTL_cmd(uint8_t *buffer);  //kwp_ch uncommented
+
+//ISO9141_14230_TxMsg_S ISO9141_14230_TxMsg_S_Buffer;/* it is extern variable .declaration in kwp_if.h,definition in kwp_if.c, so can use directly with including kwp_if.h */
+
 //hfcpReq_t * delete_ip_addr;
 /******************************************************************************
 * Function name         : Socket_To_Tx
@@ -3105,18 +3109,20 @@ void process_CAN_FD_IOCTL_cmd(uint8_t * buff)
 
 void process_KWP_command(uint8_t * buffer)
 {
-	hfcpReq_t * KWP_buffer = (hfcpReq_t*)buffer;	//ad
-	uint8_t fl_status_U8, fl_USB_tx_data_U8A[64], command = 0;
+	hfcpReq_t * KWP_buffer = (hfcpReq_t*)buffer;	//add
+	uint8_t fl_status_U8, fl_USB_tx_data_U8A[512], command = 0;
 //	uint32_t fl_baudrate_U32 = 0; //ch
 	PERIODIC_MSG j2534_periodic_msg;
 	uint8_t periodic_msg_cmd = 0;
-	J2534_filter_t fl_filter_config;
-	uint8_t fl_FilterID, loop_count = 0;// fl_Protocol_ID_U8; // ch
+	J2534_filter_t 	fl_filter_config;			;
+	uint8_t fl_FilterID, fl_Protocol_ID_U8;
+	uint32_t loop_count = 0;
 	J2534_stError_t fl_filt_config_status, fl_filt_stop_status;
 	uint32_t current_time_stamp = 0;
 	ISO9141_14230_Init_S fl_App_ISO9141_14230Init_S;
 	ISO9141_14230_RETCODE fl_ISO9141_14230RetStatus;
 	uint16_t fl_IdxLen;
+	lv_t *plv;
 
 	/* The Length has to retained with successive Calls */
 	static uint16_t fl_KWPTX_LocalLen;
@@ -3126,7 +3132,7 @@ void process_KWP_command(uint8_t * buffer)
 	switch (command) {
 	case KWP_EnableComm:
 		{
-			memset(&fl_USB_tx_data_U8A, 0, 64);
+			memset(&fl_USB_tx_data_U8A, 0, 512);
 			fl_USB_tx_data_U8A[0] = buffer[0];
 			fl_USB_tx_data_U8A[1] = buffer[1];
 			fl_USB_tx_data_U8A[2] = buffer[2];
@@ -3177,28 +3183,30 @@ void process_KWP_command(uint8_t * buffer)
 				/* ERROR: It should never enter here */
 				fl_USB_tx_data_U8A[5] = ERR_INVALID_PROTOCOL_ID;  // kwp_ch_indx
 				//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],3,DONT_RELEASE);
-			//	(void)host_write((void *) fl_USB_tx_data_U8A, 3); // kwp_comment
+				(void)host_write((void *) fl_USB_tx_data_U8A, 6); 
 				break;
 			}
 			l_connected_channels++;
 			l_connected_channel_Kline = 1;
 			//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],3,DONT_RELEASE);
-		//	(void)host_write((void *)fl_USB_tx_data_U8A, 3);          // kwp_comment
+			(void)host_write((void *)fl_USB_tx_data_U8A, 6);        
 			break;
 		}
 
-#if 0
+
 	case KWP_DisableComm:
 		{
-			memset(&fl_USB_tx_data_U8A, 0, 64);
+			memset(&fl_USB_tx_data_U8A, 0, APP_BUFFER_SIZE);
 			fl_USB_tx_data_U8A[0] = buffer[0];
-			fl_USB_tx_data_U8A[1] = KWP_DisableComm_ACK;
+			fl_USB_tx_data_U8A[1] = buffer[1];
+			fl_USB_tx_data_U8A[2] = buffer[2];
+			fl_USB_tx_data_U8A[3] = buffer[3];
+			fl_USB_tx_data_U8A[4] = KWP_DisableComm_ACK;
 			J2534_ClearAllFilter(KWP_PROTOCOL_ID);	//buffer[0]);
 			suspend_pmsg(KWP_PROTOCOL_ID);	//buffer[0]); /* Suspend all periodic messages */
 			ISO9141_14230_Reset();
 
-			if ((buffer[0] == KWP_PROTOCOL_ID)
-			    || (buffer[0] == ISO_9141_PROTO_ID)) {
+			if ((KWP_buffer->proto_id == KWP_PROTOCOL_ID) || (KWP_buffer->proto_id == ISO_9141_PROTO_ID)) {
 				ISO_9141_OR_14230 = 0;
 				if (l_connected_channels) {
 					l_connected_channels--;
@@ -3208,18 +3216,17 @@ void process_KWP_command(uint8_t * buffer)
 				//stop_time_stamp(timestamp_id[GARUDA_KWP_CH1]);
 			} else {
 				/* ERROR: It should never enter here */
-				fl_USB_tx_data_U8A[2] = ERR_INVALID_PROTOCOL_ID;
+				fl_USB_tx_data_U8A[5] = ERR_INVALID_PROTOCOL_ID;
 				//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],3,DONT_RELEASE);
-				(void)host_write((void *)
-						   fl_USB_tx_data_U8A, 3);
+				(void)host_write((void *) fl_USB_tx_data_U8A, 6);
 				break;
 			}
-			fl_USB_tx_data_U8A[2] = STATUS_NOERROR;
+			fl_USB_tx_data_U8A[5] = STATUS_NOERROR;
 			//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],3,DONT_RELEASE);
-			(void)host_write((void *)fl_USB_tx_data_U8A, 3);
+			(void)host_write((void *)fl_USB_tx_data_U8A, 6);
 			break;
 		}
-#endif
+
 
 	case IOCTL_COMMAND:
 		{
@@ -3236,23 +3243,24 @@ void process_KWP_command(uint8_t * buffer)
 				
 					/*l_App_ISO9141_14230TxMsg_S.Length = ((uint16_t) buffer[3] | (uint16_t) buffer[4] << 8); */
 					
-					l_App_ISO9141_14230TxMsg_S.Length = KWP_buffer->u.kwp_sndmsg.tx_msg_len;
+					ISO9141_14230_TxMsg_S_Buffer.Length = KWP_buffer->u.kwp_sndmsg.tx_msg_len;  
 
 					/* If No Segmented Message Then Pass to Lower Layer */
 					if (SEG_NUM_ZERO == KWP_buffer->u.kwp_sndmsg.seg_num) {
 					
+					
 						/* If Length is 0 then dont copy data and Flags */
-						if (l_App_ISO9141_14230TxMsg_S.Length != 0) {
+						if (ISO9141_14230_TxMsg_S_Buffer.Length != 0) {
 						
 							//l_App_ISO9141_14230TxMsg_S.Flags = ((uint32_t)buffer[5] | (uint32_t)buffer[6] << 8 | (uint32_t)buffer[7] << 16 | (uint32_t)buffer[8] << 24);
 
-							l_App_ISO9141_14230TxMsg_S.Flags = KWP_buffer->u.kwp_sndmsg.tx_msg_flags;
+							ISO9141_14230_TxMsg_S_Buffer.Flags = KWP_buffer->u.kwp_sndmsg.tx_msg_flags;
 							
 							/*for (fl_IdxLen = 0; fl_IdxLen < l_App_ISO9141_14230TxMsg_S.Length; fl_IdxLen++) {
 								l_App_ISO9141_14230TxMsg_S.Data[fl_IdxLen] = buffer[9 + fl_IdxLen];
 							}*/
-							for (fl_IdxLen = 0; fl_IdxLen < l_App_ISO9141_14230TxMsg_S.Length;fl_IdxLen++) {
-								l_App_ISO9141_14230TxMsg_S.Data[fl_IdxLen] = buffer[12 + fl_IdxLen];
+							for (fl_IdxLen = 0; fl_IdxLen < ISO9141_14230_TxMsg_S_Buffer.Length;fl_IdxLen++) {
+								ISO9141_14230_TxMsg_S_Buffer.Data[fl_IdxLen] = buffer[12 + fl_IdxLen];
 							}
 							
 						} else {
@@ -3260,13 +3268,13 @@ void process_KWP_command(uint8_t * buffer)
 						}
 
 						/* MArk the Flag = NO Segmented Transfer */
-						l_KWPTX_SegTrnsfr = 0;
+					//	l_KWPTX_SegTrnsfr = 0;
 						
 						/* Call the Write Message function */
-						fl_ISO9141_14230RetStatus = ISO9141_14230_WriteMsg(&l_App_ISO9141_14230TxMsg_S);
+						fl_ISO9141_14230RetStatus = ISO9141_14230_WriteMsg();
 
 						/* Determine the Response */
-						memset(&fl_USB_tx_data_U8A, 0, 64);
+						memset(&fl_USB_tx_data_U8A, 0, 512);
 						
 						/*fl_USB_tx_data_U8A[0] = buffer[0];
 						fl_USB_tx_data_U8A[1] = KWP_Send_msg_ACK;
@@ -3279,8 +3287,8 @@ void process_KWP_command(uint8_t * buffer)
 						 fl_USB_tx_data_U8A[4] = KWP_Send_msg_ACK;
 						 fl_USB_tx_data_U8A[5] = KWP_buffer->u.kwp_sndmsg.seg_num;
 						 
-						/* Update time stamp on USB TX Frame */
-						current_time_stamp = l_App_ISO9141_14230TxMsg_S.Timestamp;
+						/* Update time stamp on USB TX Frame */ // Doubt because timestamp updated by local structure at write msg 
+						current_time_stamp = ISO9141_14230_TxMsg_S_Buffer.Timestamp; //Need to check
 						fl_USB_tx_data_U8A[7] = (uint8_t) ((current_time_stamp) & 0xFF);
 						fl_USB_tx_data_U8A[8] = (uint8_t) ((current_time_stamp >> 8) & 0xFF);
 						fl_USB_tx_data_U8A[9] = (uint8_t) ((current_time_stamp >> 16) & 0xFF);
@@ -3296,12 +3304,17 @@ void process_KWP_command(uint8_t * buffer)
 						
 						//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],8,DONT_RELEASE);
 						
-						(void)host_write((void *)fl_USB_tx_data_U8A, 8);
+						(void)host_write((void *)fl_USB_tx_data_U8A, 11); // size needs to check 
 					}
+				
+					else{
+						/* Do Nothing */
+					}
+			#if 0		
 					/* For Segment No 1 */
 					else {
 						/*l_App_ISO9141_14230TxMsg_S.Flags = ((uint32_t) buffer[5] | (uint32_t)buffer[6] << 8 | (uint32_t) buffer[7] << 16 | (uint32_t) buffer[8] << 24);*/
-						l_App_ISO9141_14230TxMsg_S.Flags = KWP_buffer->u.kwp_sndmsg.tx_msg_flags;
+						ISO9141_14230_TxMsg_S_Buffer.Flags = KWP_buffer->u.kwp_sndmsg.tx_msg_flags;
 
 						/* MArk the Flag = Segmented Transfer */
 						l_KWPTX_SegTrnsfr = 1;
@@ -3314,11 +3327,12 @@ void process_KWP_command(uint8_t * buffer)
 							fl_KWPTX_LocalLen++;
 						}*/
 						
-						for (fl_IdxLen = 0; ((fl_IdxLen <= 51) && (fl_KWPTX_LocalLen  < l_App_ISO9141_14230TxMsg_S.Length)); fl_IdxLen++) {
-							l_App_ISO9141_14230TxMsg_S.Data[fl_KWPTX_LocalLen] = buffer[12 + fl_IdxLen];
+						// here loop size needs to change from 51 to based on 512 
+						for (fl_IdxLen = 0; ((fl_IdxLen <= 51) && (fl_KWPTX_LocalLen  < ISO9141_14230_TxMsg_S_Buffer.Length)); fl_IdxLen++) {
+							ISO9141_14230_TxMsg_S_Buffer.Data[fl_KWPTX_LocalLen] = buffer[12 + fl_IdxLen];
 							fl_KWPTX_LocalLen++;
 						}
-						if (fl_KWPTX_LocalLen == l_App_ISO9141_14230TxMsg_S.Length) {
+						if (fl_KWPTX_LocalLen == ISO9141_14230_TxMsg_S_Buffer.Length) {
 							/* Determine the Response */
 							memset(&fl_USB_tx_data_U8A,0, 64);
 							
@@ -3347,7 +3361,9 @@ void process_KWP_command(uint8_t * buffer)
 							/* Do Nothing */
 						}
 					}
+			#endif
 				}
+			#if 0
 				/* It IS Segmented Message Read the Complete Message */
 				else if ((l_KWPTX_SegTrnsfr ==1) && (KWP_buffer->u.kwp_sndmsg.seg_num > SEG_NUM_ONE)) {
 				
@@ -3356,18 +3372,18 @@ void process_KWP_command(uint8_t * buffer)
 						l_App_ISO9141_14230TxMsg_S.Data[fl_KWPTX_LocalLen] = buffer[3 + fl_IdxLen];
 						fl_KWPTX_LocalLen++;
 					}*/
-					for (fl_IdxLen = 0; ((fl_IdxLen < 58) && (fl_KWPTX_LocalLen < l_App_ISO9141_14230TxMsg_S.Length)); fl_IdxLen++) {
-						l_App_ISO9141_14230TxMsg_S.Data[fl_KWPTX_LocalLen] = buffer[6 + fl_IdxLen];
+					for (fl_IdxLen = 0; ((fl_IdxLen < 58) && (fl_KWPTX_LocalLen < ISO9141_14230_TxMsg_S_Buffer.Length)); fl_IdxLen++) {
+						ISO9141_14230_TxMsg_S_Buffer.Data[fl_KWPTX_LocalLen] = buffer[6 + fl_IdxLen];
 						fl_KWPTX_LocalLen++;
 					}
 					/* All Data Copied Segmented Transfer Ends */
-					if (fl_KWPTX_LocalLen == l_App_ISO9141_14230TxMsg_S.Length) {
+					if (fl_KWPTX_LocalLen == ISO9141_14230_TxMsg_S_Buffer.Length) {
 					
 						/* MArk the Flag = Segmented Transfer Ended */
 						l_KWPTX_SegTrnsfr = 0;
 						
 						/* Call the Write Message function */
-						fl_ISO9141_14230RetStatus = ISO9141_14230_WriteMsg(&l_App_ISO9141_14230TxMsg_S);
+						fl_ISO9141_14230RetStatus = ISO9141_14230_WriteMsg();
 						
 						/* Determine the Response */
 						memset(&fl_USB_tx_data_U8A,0, 64);
@@ -3390,7 +3406,7 @@ void process_KWP_command(uint8_t * buffer)
 						fl_USB_tx_data_U8A[6] = (uint8_t) ((current_time_stamp >> 16) & 0xFF);
 						fl_USB_tx_data_U8A[7] = (uint8_t) ((current_time_stamp >> 24) & 0xFF);*/
 						    
-						current_time_stamp = l_App_ISO9141_14230TxMsg_S.Timestamp;
+						current_time_stamp = ISO9141_14230_TxMsg_S_Buffer.Timestamp;
 						fl_USB_tx_data_U8A[7] = (uint8_t) ((current_time_stamp) & 0xFF);
 						fl_USB_tx_data_U8A[8] = (uint8_t) ((current_time_stamp >> 8) & 0xFF);
 						fl_USB_tx_data_U8A[9] = (uint8_t) ((current_time_stamp >> 16) & 0xFF);
@@ -3410,6 +3426,7 @@ void process_KWP_command(uint8_t * buffer)
 						(void)host_write((void *)fl_USB_tx_data_U8A, 8);
 					}
 				} 
+			#endif
 				else {
 					/*Do nothing*/
 				}
@@ -3418,7 +3435,7 @@ void process_KWP_command(uint8_t * buffer)
 				/*fl_USB_tx_data_U8A[0] = buffer[0];
 				fl_USB_tx_data_U8A[1] = KWP_Send_msg_ACK;
 				fl_USB_tx_data_U8A[2] = buffer[2];
-				fl_USB_tx_data_U8A[3] = ERR_INVALID_PROTOCOL_ID;*/
+				fl_USB_tx_data_U	8A[3] = ERR_INVALID_PROTOCOL_ID;*/
 				
 				fl_USB_tx_data_U8A[0] = buffer[0];
 				fl_USB_tx_data_U8A[1] = buffer[1];
@@ -3430,146 +3447,146 @@ void process_KWP_command(uint8_t * buffer)
 				
 				
 				//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],4,DONT_RELEASE);
-				(void)host_write((void *)fl_USB_tx_data_U8A, 4);
+				(void)host_write((void *)fl_USB_tx_data_U8A, 7);
 			}
 			break;
 		}
-#if 0
+
 	case Start_msg_filter:
-		if ((buffer[0] == KWP_PROTOCOL_ID)
-		    || (buffer[0] == ISO_9141_PROTO_ID)) {
+		if ((KWP_buffer->proto_id == KWP_PROTOCOL_ID) || (KWP_buffer->proto_id == ISO_9141_PROTO_ID)) {
 			fl_Protocol_ID_U8 = KWP_PROTOCOL_ID;
 		}
 
-				  /**< Changed for differentiating 14230 and 9141 protocol */
+		/**< Changed for differentiating 14230 and 9141 protocol */
 		fl_filter_config.Protocol_ID = fl_Protocol_ID_U8;	/* buffer[0]; */
-		fl_filter_config.filterType = (J2534_filterType_t) buffer[2];
-		fl_filter_config.MaskLen = buffer[3];
-		for (loop_count = 0;
-		     loop_count < fl_filter_config.MaskLen; loop_count++) {
-			fl_filter_config.maskMsg[loop_count] =
-			    buffer[4 + loop_count];
+		fl_filter_config.filterType = (J2534_filterType_t)KWP_buffer->u.kwp_msg_filter.filtertype;
+		plv = (lv_t*) (KWP_buffer->u.kwp_msg_filter.buf);
+		fl_filter_config.MaskLen = plv->len;
+		
+		for (loop_count = 0; loop_count < plv->len; loop_count++) {
+			fl_filter_config.maskMsg[loop_count] = plv->buf[loop_count];
 		}
-		fl_filter_config.PatternLen =
-		    buffer[4 + fl_filter_config.MaskLen];
-		for (loop_count = 0;
-		     loop_count < fl_filter_config.PatternLen; loop_count++) {
-			fl_filter_config.patternMsg[loop_count] =
-			    buffer[5 + fl_filter_config.MaskLen + loop_count];
+		
+		plv = (lv_t*) (KWP_buffer->u.kwp_msg_filter.buf) + sizeof(plv->len) + plv->len;
+		fl_filter_config.PatternLen = plv->len;
+		
+		for (loop_count = 0; loop_count < plv->len; loop_count++) {
+			fl_filter_config.patternMsg[loop_count] = plv->buf[loop_count];
 		}
-		fl_filt_config_status =
-		    J2534_ConfigFilter(&fl_filter_config, &fl_FilterID);
+		
+		fl_filt_config_status = J2534_ConfigFilter(&fl_filter_config, &fl_FilterID);
+		
 		if (fl_filt_config_status != J2534_NO_ERROR) {
 			if (fl_filt_config_status == J2534_FLT_NOT_FREE) {
 				fl_status_U8 = ERR_EXCEEDED_LIMIT;
 			} else {
 				fl_status_U8 = ERR_FAILED;
 			}
-			memset(&fl_USB_tx_data_U8A, 0, 64);
+			memset(&fl_USB_tx_data_U8A, 0, APP_BUFFER_SIZE);
 			fl_USB_tx_data_U8A[0] = buffer[0];
-			fl_USB_tx_data_U8A[1] = Start_msg_filter_ACK;
-			fl_USB_tx_data_U8A[2] = fl_status_U8;
-			fl_USB_tx_data_U8A[3] = fl_FilterID;
+			fl_USB_tx_data_U8A[1] = buffer[1];
+			fl_USB_tx_data_U8A[2] = buffer[2];
+			fl_USB_tx_data_U8A[3] = buffer[3];
+			fl_USB_tx_data_U8A[4] = Start_msg_filter_ACK;
+			fl_USB_tx_data_U8A[5] = fl_status_U8;
+			fl_USB_tx_data_U8A[6] = fl_FilterID;
 			//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],5,DONT_RELEASE);
-			(void)host_write((void *)
-					   fl_USB_tx_data_U8A, 5);
+			(void)host_write((void *)fl_USB_tx_data_U8A, 7);
 		} else {
-			memset(&fl_USB_tx_data_U8A, 0, 64);
+			memset(&fl_USB_tx_data_U8A, 0, APP_BUFFER_SIZE);
 			fl_USB_tx_data_U8A[0] = buffer[0];
-			fl_USB_tx_data_U8A[1] = Start_msg_filter_ACK;
-			fl_USB_tx_data_U8A[2] = STATUS_NOERROR;
-			fl_USB_tx_data_U8A[3] = fl_FilterID;
+			fl_USB_tx_data_U8A[1] = buffer[1];
+			fl_USB_tx_data_U8A[2] = buffer[2];
+			fl_USB_tx_data_U8A[3] = buffer[3];
+			fl_USB_tx_data_U8A[4] = Start_msg_filter_ACK;
+			fl_USB_tx_data_U8A[5] = STATUS_NOERROR;
+			fl_USB_tx_data_U8A[6] = fl_FilterID;
 			//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],5,DONT_RELEASE);
-			(void)host_write((void *)
-					   fl_USB_tx_data_U8A, 5);
+			(void)host_write((void *) fl_USB_tx_data_U8A, 7);
 		}
 		break;
+		
+
 	case Stop_msg_filter:
-		if ((buffer[0] == KWP_PROTOCOL_ID)
-		    || (buffer[0] == ISO_9141_PROTO_ID)) {
+		if ((KWP_buffer->proto_id == KWP_PROTOCOL_ID) || (KWP_buffer->proto_id == ISO_9141_PROTO_ID)) {
 			fl_Protocol_ID_U8 = KWP_PROTOCOL_ID;
 		}
 
 		/* fl_Protocol_ID_U8 = buffer[0]; */
 
-				  /**< Commented to have a common Id for 9141 and 14230 */
-		fl_FilterID = buffer[2];
-		fl_filt_stop_status =
-		    J2534_ClearFilter(fl_FilterID, fl_Protocol_ID_U8);
+		/**< Commented to have a common Id for 9141 and 14230 */
+		fl_FilterID = KWP_buffer->u.kwp_stpmsg_filter.filterid;
+		fl_filt_stop_status = J2534_ClearFilter(fl_FilterID, fl_Protocol_ID_U8);
 		if (fl_filt_stop_status != J2534_NO_ERROR) {
 			if (fl_filt_stop_status == J2534_INVLD_FLTID) {
 				fl_status_U8 = ERR_INVALID_FILTER_ID;
 			} else {
 				fl_status_U8 = ERR_FAILED;
 			}
-			memset(&fl_USB_tx_data_U8A, 0, 64);
-			fl_USB_tx_data_U8A[0] = fl_Protocol_ID_U8;
-			fl_USB_tx_data_U8A[1] = Stop_msg_filter_ACK;
-			fl_USB_tx_data_U8A[2] = fl_status_U8;
-			fl_USB_tx_data_U8A[3] = fl_FilterID;
+			memset(&fl_USB_tx_data_U8A, 0, APP_BUFFER_SIZE);
+			fl_USB_tx_data_U8A[0] = buffer[0];
+			fl_USB_tx_data_U8A[1] = buffer[1];
+			fl_USB_tx_data_U8A[2] = buffer[2];
+			fl_USB_tx_data_U8A[3] = buffer[3];
+			fl_USB_tx_data_U8A[4] = Stop_msg_filter_ACK;
+			fl_USB_tx_data_U8A[5] = fl_status_U8;
+			fl_USB_tx_data_U8A[6] = fl_FilterID;
 			//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],4,DONT_RELEASE);
-			(void)host_write((void *)
-					   fl_USB_tx_data_U8A, 4);
+			(void)host_write((void *)fl_USB_tx_data_U8A, 7);
 		} else {
-			memset(&fl_USB_tx_data_U8A, 0, 64);
-			fl_USB_tx_data_U8A[0] = fl_Protocol_ID_U8;
-			fl_USB_tx_data_U8A[1] = Stop_msg_filter_ACK;
-			fl_USB_tx_data_U8A[2] = STATUS_NOERROR;
-			fl_USB_tx_data_U8A[3] = fl_FilterID;
+			memset(&fl_USB_tx_data_U8A, 0, APP_BUFFER_SIZE);
+			fl_USB_tx_data_U8A[0] = buffer[0];
+			fl_USB_tx_data_U8A[1] = buffer[1];
+			fl_USB_tx_data_U8A[2] = buffer[2];
+			fl_USB_tx_data_U8A[3] = buffer[3];
+			fl_USB_tx_data_U8A[4] = Stop_msg_filter_ACK;
+			fl_USB_tx_data_U8A[5] = STATUS_NOERROR;
+			fl_USB_tx_data_U8A[6] = fl_FilterID;
 			//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],4,DONT_RELEASE);
-			(void)host_write((void *)
-					   fl_USB_tx_data_U8A, 4);
+			(void)host_write((void *)fl_USB_tx_data_U8A, 7);
 		}
 		break;
+
 	case handle_periodic_msg:
-		if ((buffer[0] == KWP_PROTOCOL_ID)
-		    || (buffer[0] == ISO_9141_PROTO_ID)) {
+		if ((KWP_buffer->proto_id == KWP_PROTOCOL_ID) || (KWP_buffer->proto_id == ISO_9141_PROTO_ID)) {
 			fl_Protocol_ID_U8 = KWP_PROTOCOL_ID;
 		}
 
-		periodic_msg_cmd = buffer[2];
+		periodic_msg_cmd = KWP_buffer->u.kwp_periodic_msg.periodic_command;
 		j2534_periodic_msg.protocol_id = fl_Protocol_ID_U8;	/* buffer[0]; */
+		    
+		j2534_periodic_msg.periodicity = KWP_buffer->u.kwp_periodic_msg.periodicity;
+		j2534_periodic_msg.prmsg_id = KWP_buffer->u.kwp_periodic_msg.msgid;
+		j2534_periodic_msg.proto_msg.tx_flags = KWP_buffer->u.kwp_periodic_msg.tx_flags;
 
-		j2534_periodic_msg.periodicity = buffer[3] |
-		    buffer[4] << 8 | buffer[5] << 16 | buffer[6]
-		    << 24;
-
-		j2534_periodic_msg.prmsg_id = buffer[7];
-
-		j2534_periodic_msg.proto_msg.tx_flags =
-		    buffer[8] | buffer[9] << 8 | buffer[10] <<
-		    16 | buffer[11] << 24;
-
-		if ((periodic_msg_cmd == START_NEW_PERIODIC_MSG_TXN)
-		    || (periodic_msg_cmd == UPDATE_DATA_TO_MSG_ID)) {
-			j2534_periodic_msg.proto_msg.length = buffer[12];
+		if ((periodic_msg_cmd == START_NEW_PERIODIC_MSG_TXN) || (periodic_msg_cmd == UPDATE_DATA_TO_MSG_ID)) {
+			j2534_periodic_msg.proto_msg.length = KWP_buffer->u.kwp_periodic_msg.msglen;
 		} else {
 			j2534_periodic_msg.proto_msg.length = 0;
 		}
 
-		for (loop_count = 0;
-		     loop_count <
-		     j2534_periodic_msg.proto_msg.length; loop_count++) {
-			j2534_periodic_msg.proto_msg.data[loop_count] =
-			    buffer[13 + loop_count];
+		for (loop_count = 0; loop_count < j2534_periodic_msg.proto_msg.length; loop_count++) {
+			j2534_periodic_msg.proto_msg.data[loop_count] = KWP_buffer->u.kwp_periodic_msg.buf[loop_count];
 		}
 
-		if (PERIODIC_SUCCESS ==
-		    PERIODIC_msg_cmd(&j2534_periodic_msg, periodic_msg_cmd)) {
+		if (PERIODIC_SUCCESS == PERIODIC_msg_cmd(&j2534_periodic_msg, periodic_msg_cmd)) {
 			fl_status_U8 = STATUS_NOERROR;
 		} else {
 			fl_status_U8 = ERR_FAILED;
 		}
 		/* Send Acknowledgement to J2534 DLL */
-		memset(&fl_USB_tx_data_U8A, 0, 64);
+		memset(&fl_USB_tx_data_U8A, 0, APP_BUFFER_SIZE);
 		fl_USB_tx_data_U8A[0] = buffer[0];
-		fl_USB_tx_data_U8A[1] = handle_periodic_msg_ACK;
-		fl_USB_tx_data_U8A[2] = fl_status_U8;
-		fl_USB_tx_data_U8A[3] = j2534_periodic_msg.prmsg_id;
+		fl_USB_tx_data_U8A[1] = buffer[1];
+		fl_USB_tx_data_U8A[2] = buffer[2];
+		fl_USB_tx_data_U8A[3] = buffer[3];
+		fl_USB_tx_data_U8A[4] = handle_periodic_msg_ACK;
+		fl_USB_tx_data_U8A[5] = fl_status_U8;
+		fl_USB_tx_data_U8A[6] = j2534_periodic_msg.prmsg_id;
 		//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],4,DONT_RELEASE);
-		(void)host_write((void *)fl_USB_tx_data_U8A, 4);
+		(void)host_write((void *)fl_USB_tx_data_U8A, 7);
 		break;
-#endif
+
 	default:
 		break;
 	}
@@ -3582,7 +3599,7 @@ static void process_KWP_IOCTL_cmd(uint8_t * buffer)
 {
 	hfcpReq_t *KWP_buffer = (hfcpReq_t*)buffer;  //ch
 	uint32_t fl_KWP_par_val_U32;
-	uint8_t fl_USB_tx_data_U8A[64];
+	uint8_t fl_USB_tx_data_U8A[512];
 	J2534_stError_t fl_filt_stopAll_status;
 	ISO9141_14230_Cmd_S fl_App_ISO9141_14230Cmd_S;
 	ISO9141_14230_RETCODE fl_ISO9141_14230RetStatus = NO_ERROR;
@@ -3595,7 +3612,7 @@ static void process_KWP_IOCTL_cmd(uint8_t * buffer)
 	} else {
 		//fl_channel_no_U8 = 2;
 	}
-	memset(&fl_USB_tx_data_U8A, 0, 64);
+	memset(&fl_USB_tx_data_U8A, 0, 512);
 
 	fl_USB_tx_data_U8A[0] = buffer[0];   //ch
 	fl_USB_tx_data_U8A[1] = buffer[1];
@@ -3616,7 +3633,7 @@ static void process_KWP_IOCTL_cmd(uint8_t * buffer)
 		/* Suspend all periodic messages */
 		fl_USB_tx_data_U8A[6] = STATUS_NOERROR;	/* Error status */   //ch
 		//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],4,DONT_RELEASE);
-		(void)host_write((void *)fl_USB_tx_data_U8A, 4);
+		(void)host_write((void *)fl_USB_tx_data_U8A, 7);
 	}
 	/* Clear All Message Filters Command */
 	else if (clear_all_msg_filters == fl_App_ISO9141_14230Cmd_S.IOCtlId) {
@@ -3629,7 +3646,7 @@ static void process_KWP_IOCTL_cmd(uint8_t * buffer)
 			fl_USB_tx_data_U8A[6] = ERR_FAILED;	/* Failed due to Wrong Protocol ID */  //ch
 		}
 		//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],4,DONT_RELEASE);
-		(void)host_write((void *)fl_USB_tx_data_U8A, 4);
+		(void)host_write((void *)fl_USB_tx_data_U8A, 7);
 	} else {
 		/* Determine if the IOCtl is GET_CONFIG or SET_CONFIG to check for param id and param val */
 		if ((fl_App_ISO9141_14230Cmd_S.IOCtlId == GET_CONFIG)  || (fl_App_ISO9141_14230Cmd_S.IOCtlId == SET_CONFIG)) {
@@ -3684,7 +3701,7 @@ static void process_KWP_IOCTL_cmd(uint8_t * buffer)
 		/* Send the Response only if its not FAST INIT ot FIVE BAUD INIT */
 		if ((fl_App_ISO9141_14230Cmd_S.IOCtlId != FAST_INIT) && (fl_App_ISO9141_14230Cmd_S.IOCtlId != FIVE_BAUD_INIT)) {
 			//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],10,DONT_RELEASE);
-			(void)host_write((void *) fl_USB_tx_data_U8A, 10);
+			(void)host_write((void *) fl_USB_tx_data_U8A, 13);
 		}
 	}
 }

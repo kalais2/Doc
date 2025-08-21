@@ -320,6 +320,7 @@ typedef enum HFCP_COMMAND_ID {
 #define APP_BUFFER_SIZE    512
 
 
+
 typedef struct {
 	uint8_t address[HFCP_MAX_IN_SINGLE_FRAME];
 	uint16_t len;
@@ -478,8 +479,26 @@ typedef struct KWP_sendmsg {
 	uint8_t seg_num;
 	uint16_t tx_msg_len;
 	uint32_t tx_msg_flags;
-	uint8_t buf[255];
+	uint8_t buf[512];
 }PACKED KWP_sendmsg_t;
+
+typedef struct KWP_msg_filter {
+	uint8_t filtertype;
+	uint8_t buf[0];
+} PACKED KWP_msg_filter_t;
+
+typedef struct KWP_periodic_message {
+	uint8_t periodic_command;
+	uint32_t periodicity;
+	uint8_t msgid;
+	uint32_t tx_flags;
+	uint8_t msglen;
+	uint8_t buf[0];
+} PACKED KWP_periodic_msg_t;
+
+typedef struct KWP_stpmsg_filter {
+	uint16_t filterid;
+} PACKED KWP_stpmsg_filter_t;
 
 struct hfcpReq {
 	uint32_t proto_id;	/* See : HFCP_PROTO_ID_t   */
@@ -508,7 +527,10 @@ struct hfcpReq {
 		doip_client_details_t doipclient;
 		KWP_Enablecomm_t kwp_enable;
 		KWP_ioctl_req_t kwp_ioctl_req;
-		KWP_sendmsg_t kwp_sndmsg;		
+		KWP_sendmsg_t kwp_sndmsg;	
+		KWP_msg_filter_t kwp_msg_filter;
+		KWP_stpmsg_filter_t kwp_stpmsg_filter;
+		KWP_periodic_msg_t kwp_periodic_msg;	
 	} PACKED u;
 } PACKED;
 

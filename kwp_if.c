@@ -16,6 +16,12 @@
 *******************************************************************************/
 
 UARTContext *Global_uart_ctx = NULL;
+struct T_GPIO_context	GPIO_KWP_TXD;
+struct T_GPIO_context	GPIO_KLINE_LLINE_SLCT;
+struct T_GPIO_context	GPIO_KLINE_PULLUP_SLCT;
+struct T_GPIO_context	GPIO_LLINE_ISO_SLCT;
+struct T_GPIO_context	GPIO_KLINE_ISO_SLCT;
+struct T_GPIO_context	GPIO_KW_TX_5BAUD;
 
 /* Init Link Information */
 static volatile ISO9141_14230_LinkInit_S l_ISO9141_14230LinkInit_S;
@@ -328,9 +334,13 @@ void KWP_TimeOut_handle(void)
 							KWP_reset_TimeOut();
 							KWP_Set_TimeOut((l_P4MIN),(P4MIN_WAIT));
 						}
-						else if(data_indx == l_TxLength )
+						else{
+						
+						}
+						if(data_indx == l_TxLength )
 						{
 							fastinit_start_comm_req_end_flag = !FALSE;
+							
 						}
 						else
 						{
@@ -518,7 +528,8 @@ gboolean KWP_Timer_Handler(gpointer data)
 					//ISO9141_14230_DisableBusMonitor();
 
 					/* Send the Start Bit */
-		  	                 //Set_Pin_Low(KW_TXD);                                     
+		  	                 //Set_Pin_Low(KW_TXD);    
+		  	                 T_gpio_PIN_set(&GPIO_KWP_TXD, 0);                               
 
 					/* Update the Init reference time */
 					//l_RefInitTime = fl_CurrTime;
@@ -543,12 +554,14 @@ gboolean KWP_Timer_Handler(gpointer data)
 
 							/* Bit is 1 - Set K Line */
 							//Set_Pin_High(KW_TXD);
+							T_gpio_PIN_set(&GPIO_KWP_TXD, 1); 
 						}
 
 						else {
 
 							/* Bit is 0 - Reset K Line */
 			                               // Set_Pin_Low(KW_TXD);
+			                               T_gpio_PIN_set(&GPIO_KWP_TXD, 0); 
 						}
 
 						/* Increment the bit position to transmit the next bit */
@@ -593,12 +606,14 @@ gboolean KWP_Timer_Handler(gpointer data)
 
 							/* Parity Bit is 1 - Set K Line */
 							// Set_Pin_High(KW_TXD);
+							T_gpio_PIN_set(&GPIO_KWP_TXD, 1); 
 						}
 
 						else {
 
 							/* Parity Bit is 0 - Reset K Line */
 				                        //Set_Pin_Low(KW_TXD);
+				                        T_gpio_PIN_set(&GPIO_KWP_TXD, 0); 
 						}
 
 						/* After transmission of Parity bit, increment the bit
@@ -638,6 +653,7 @@ gboolean KWP_Timer_Handler(gpointer data)
 
 					/* Stop Bit */
 			                //Set_Pin_High(KW_TXD);
+			                T_gpio_PIN_set(&GPIO_KWP_TXD, 1); 
 
 					/* Update the Init reference time */
 					//l_RefInitTime = fl_CurrTime;
@@ -657,6 +673,7 @@ gboolean KWP_Timer_Handler(gpointer data)
 
 						/* Disable L line after Initialization ?????? */
 				                //Set_Pin_Low(KLINE_LLINE_SLCT);
+				                T_gpio_PIN_set(&GPIO_KLINE_LLINE_SLCT, 0); 
 					}
 
 					/* Configure the UART Tx as Peripheral */
@@ -929,6 +946,8 @@ gboolean KWP_Timer_Handler(gpointer data)
 
 						/* TiniL pattern */
 						// Set_Pin_Low(KW_TXD);
+						T_gpio_PIN_set(&GPIO_KWP_TXD, 0);
+						
 						/* Update the Init reference time */
 						//l_RefInitTime = fl_CurrTime;
 						timer_counter = 0;
@@ -943,7 +962,7 @@ gboolean KWP_Timer_Handler(gpointer data)
 
 						/* TWup - TiniL pattern */
 						// Set_Pin_High(KW_TXD);
-
+						T_gpio_PIN_set(&GPIO_KWP_TXD, 1);
 						/* Time not updated to represent the rest of Twup */
 						/* Increment l_BitPos to indicate end of wakeup pattern */
 						l_BitPos++;
@@ -960,6 +979,7 @@ gboolean KWP_Timer_Handler(gpointer data)
 
 							/* Disable L line after Initialization ?????? */
 							//Set_Pin_Low(KLINE_LLINE_SLCT);
+							T_gpio_PIN_set(&GPIO_KLINE_LLINE_SLCT, 0);
 						}
 
 						/* Configure UART Tx as Peripheral */
@@ -1399,7 +1419,11 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 	
 							l_P3MINTimeout = FALSE; // doubt
 						}
-
+						else if ((l_InitStatus == LINKINIT_PENDING) && (l_ISO9141_14230LinkInit_S.InitType == FAST_INIT))
+						{
+							KWP_reset_TimeOut();
+							KWP_Set_TimeOut(P2_MAX_TIME,P2_MAX_TIME_WAIT);
+						}
 						else {
 
 							/* No operation */
@@ -1895,15 +1919,36 @@ void ISO9141_14230_Init(const ISO9141_14230_Init_S * p_ISO9141_14230Init_S)
 
 	/* Interrupt handling */
 
+	/* Configure GPIO  */
+
+	GPIO_KWP_TXD.gpio_number = 36;
+	GPIO_KWP_TXD.direction   = GPIO_DIRECTION_OUT;
+	
+	GPIO_KLINE_LLINE_SLCT.gpio_number = 44;
+	GPIO_KLINE_LLINE_SLCT.direction = GPIO_DIRECTION_OUT;
+	
+	GPIO_KLINE_PULLUP_SLCT.gpio_number = 43;
+	GPIO_KLINE_PULLUP_SLCT.direction = GPIO_DIRECTION_OUT;
+	
+	GPIO_LLINE_ISO_SLCT.gpio_number = 33;
+	GPIO_LLINE_ISO_SLCT.direction = GPIO_DIRECTION_OUT;
+	
+	GPIO_KLINE_ISO_SLCT.gpio_number = 32;
+	GPIO_KLINE_ISO_SLCT.direction = GPIO_DIRECTION_OUT;
+	
+	GPIO_KW_TX_5BAUD.gpio_number = 34;
+	GPIO_KW_TX_5BAUD.direction = GPIO_DIRECTION_OUT;
+
+	
 	/* Configure GPIOs as O/P */
 
-/*
-	Config_Pin_Output(KLINE_LLINE_SLCT);
-	Config_Pin_Output(KLINE_PULLUP_SLCT);
-	Config_Pin_Output(LLINE_ISO_SLCT);
-	Config_Pin_Output(KLINE_ISO_SLCT);
-	Config_Pin_Output(KW_TX_5BAUD);
-*/
+	T_gpio_PIN_config(&GPIO_KWP_TXD);
+	T_gpio_PIN_config(&GPIO_KLINE_LLINE_SLCT);
+	T_gpio_PIN_config(&GPIO_KLINE_PULLUP_SLCT);
+	T_gpio_PIN_config(&GPIO_LLINE_ISO_SLCT);
+	T_gpio_PIN_config(&GPIO_KLINE_ISO_SLCT);
+	T_gpio_PIN_config(&GPIO_KW_TX_5BAUD);
+
 
 	/*
 	 * Clear Buffers: Clearing the RX queue typically involves discarding
@@ -2432,6 +2477,8 @@ ISO9141_14230_RETCODE ISO9141_14230_WriteMsg(void)
 	//fl_TxQStatus = ISO9141_14230_AddToQ(ISO9141_14230_TX_Q, (const ISO9141_14230_Q_S *)p_ISO9141_14230TxMsg_SP, 0);
 	
 	kwp_TxMsg_received = !FALSE;
+	
+	#if 0
 
 	/* Restore the Tx frame if checksum is configured */
 	if (CHECK_BITU8(l_ConnectFlags, BIT_CHKSUM) == FALSE) {
@@ -2440,7 +2487,7 @@ ISO9141_14230_RETCODE ISO9141_14230_WriteMsg(void)
 		ISO9141_14230_TxMsg_S_Buffer.Length--;
 		ISO9141_14230_TxMsg_S_Buffer.Data[ISO9141_14230_TxMsg_S_Buffer.Length] = 0;
 	}
-
+	#endif 
 	/* Update Tx Timestamp */
 	//get_time_stamp(timestamp_id[GARUDA_KWP_CH1], &p_ISO9141_14230TxMsg_SP->Timestamp);
 	//get_data_logging_time_stamp(&p_ISO9141_14230TxMsg_SP->Timestamp);
@@ -2670,6 +2717,7 @@ void ISO9141_14230_RxTask(void)
 				/* If checksum not Ok, reported checksum error*/
 				else
 				{
+					//call error handler
 					if(l_ProtocolId == KWP_PROTOCOL_ID)
 					{
 					   	/* Save the total length */
@@ -2818,11 +2866,12 @@ void PassThruReadMsgResp_KWP (void)
             /* 50 bytes of Space in this USB Frame */
             
             /* size needs to check */
-            for(fl_IdxLen = 0;fl_IdxLen < 50;fl_IdxLen++)
+            for(fl_IdxLen = 0;fl_IdxLen < ISO9141_14230_RxMsg_S_Buffer.Length;fl_IdxLen++)
             {
                 fl_USB_tx_data_U8A[14+fl_IdxLen]  =  ISO9141_14230_RxMsg_S_Buffer.Data[fl_IdxLen];
                 fl_KWPRX_LocalLen++;
             }
+            #if 0
             if(ISO9141_14230_RxMsg_S_Buffer.Length > 50)
             {
                 /* Its a Segmented Message Transfer Set Flag */
@@ -2831,19 +2880,21 @@ void PassThruReadMsgResp_KWP (void)
                 fl_KWPRX_SegNo = 1;
                 fl_USB_tx_data_U8A[2] = fl_KWPRX_SegNo;
             }
-            else
-            {
+            #endif
+           // else
+           // {
             	/* Reset RxMsg buffer variable */
                 kwp_RxMsg_received = FALSE;
 		kwp_RxMsg_buffer_updated = FALSE;
 		
 		/* Reset RxMsg struct */
 		memset((void*)&ISO9141_14230_RxMsg_S_Buffer,0,sizeof(ISO9141_14230_RxMsg_S_Buffer)) ;
-            }
+           // }
             (void)host_write((void *)fl_USB_tx_data_U8A, 512);
 //          (void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],64,DONT_RELEASE_ISR/*DONT_RELEASE*/);//made changes in HFCP.c
         }
     }
+    #if 0
     /* If Segmented Transfer Send Next Segments */
     else if ((1 == l_KWPRX_SegTrnsfr) && (0 != fl_KWPRX_SegNo))
     {
@@ -2856,7 +2907,7 @@ void PassThruReadMsgResp_KWP (void)
         /* 61 bytes of Space in this USB Frame */
         for(fl_IdxLen = 0;fl_IdxLen < 61; fl_IdxLen++)
         {
-            fl_USB_tx_data_U8A[3+fl_IdxLen]  =  ISO9141_14230_RxMsg_S_Buffer.Data[fl_KWPRX_LocalLen];
+            fl_USB_tx_data_U8A[3+fl_IdxLen]  =  ISO9141_14230_RxMsg_S_Buffer.Data[fl_KWPRX_LocalLen];s
             fl_KWPRX_LocalLen++;
             /* If All Data Copied then Stop Coping and MArk End of Segmented Transfer */
             if(fl_KWPRX_LocalLen >= ISO9141_14230_RxMsg_S_Buffer.Length)
@@ -2876,9 +2927,78 @@ void PassThruReadMsgResp_KWP (void)
           (void)host_write((void *)fl_USB_tx_data_U8A, 512);
  //       (void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],64,DONT_RELEASE_ISR/*DONT_RELEASE*/);//made changes in HFCP.c
     }
+    #endif
     else
     {
         /* Do Nothing */
     }
+}
+
+
+
+void ISO9141_14230_Reset(void)
+{
+	/* Reset UART communication */
+
+	memset((void *)&ISO9141_14230_TxMsg_S_Buffer, 0, sizeof(ISO9141_14230_TxMsg_S_Buffer));
+	memset((void *)&ISO9141_14230_RxMsg_S_Buffer, 0, sizeof(ISO9141_14230_RxMsg_S_Buffer));
+	
+	/* Initializuint8_te Link Init structure */
+	memset((void *)&l_ISO9141_14230LinkInit_S, 0, sizeof(ISO9141_14230_LinkInit_S));
+
+	/* Initialize Init Return data structure */
+	memset((void *)&l_ISO9141_14230LinkInitRet_S, 0, sizeof(ISO9141_14230_LinkInitRet_S));
+
+	/* Stop Timer for Timestamp for ISO 9141 / 14230 */
+//    stop_time_stamp(timestamp_id[GARUDA_KWP_CH1]);
+
+	/* Stop Timer for Timestamp for
+	   ISO 9141/14230 */
+//    stop_time_stamp(l_InitTimer);
+
+	timer_init_flag = FALSE;
+	fastinit_start_comm_req_start_flag = FALSE;
+	fastinit_start_comm_req_end_flag = FALSE;
+	kwp_RxMsg_received = FALSE;
+	kwp_RxMsg_buffer_updated = FALSE;
+	kwp_TxMsg_received = FALSE;
+
+	l_p4min_timeout = false;
+
+	/* Reset all the ISO 9141 / 14230 parameters to default values */
+	l_Parity = NO_PARITY;
+	l_DataBits = EIGHT_BITS;
+	l_ConnectFlags = 0;
+	l_loopback = 0;
+	l_P1MAX = 20000;
+	l_P3MIN = 55000;
+	l_P4MIN = 10000;
+	l_W0 = 300000;
+	l_W1 = 300000;
+	l_W2 = 20000;
+	l_W3 = 20000;
+	l_W4 = 49500;		/* Minimum Time of 50ms is not possible
+				   because of the delay in trasnmission
+				   and the max time being 50ms as well */
+	l_W5 = 300000;
+	l_TIDLE = 300000;
+	l_TINIL = 25000;
+	l_TWUP = 50000;
+	l_FiveBaudMod = FIVEBAUD_MODE_ZERO;
+	l_RxLength = 0;
+	l_TxLength = 0;
+	l_TxIndex = 0;
+	l_BitPos = 0;
+	l_InitStatus = NO_LINKINIT;
+	//l_RefIdleTime = 0;
+	//l_RefInitTime = 0;
+	l_UARTIntrTxIndex = 0;
+	l_P3MINTimeout = !FALSE;
+	l_MsgReceived = FALSE;
+	l_TxComp = FALSE;
+
+	/*DisConnect K & L from OBD Connector */
+//    Set_Pin_Low(LLINE_ISO_SLCT);
+	//   Set_Pin_Low(KLINE_ISO_SLCT);
 }
 

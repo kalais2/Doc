@@ -177,7 +177,7 @@ typedef struct {
 /* ISO9141_14230 Init Link Structure */
 typedef struct {
 	uint16_t Length;	/* Length of the data bytes */
-	uint8_t Data[255];	/* Address byte in case of 5 Baud
+	uint8_t Data[512];	/* Address byte in case of 5 Baud
 							   or data bytes in case of Fast
 							   Init */
 	uint8_t InitType;	/* 5 Baud or Fast Init */
@@ -190,7 +190,7 @@ typedef struct {
 	uint16_t Length;	/* Length of the data bytes */
 	uint8_t ProtocolId;	/* Protocol Id */
 	uint8_t IOCtlId;	/* Fast Init or 5 Baud */
-	uint8_t Data[255];	/* Key Bytes and Address byte
+	uint8_t Data[512];	/* Key Bytes and Address byte
 							   inverse in case of 5 Baud or
 							   Fast Init ECU Response data */
 } ISO9141_14230_LinkInitRet_S;
@@ -201,7 +201,7 @@ typedef struct {
 	uint32_t Timestamp;	/* Timestamp for the received msg */
 	uint32_t Flags;		/* Rx flags */
 	uint16_t Length;	/* Rx message length */
-	uint8_t Data[255];	/* Rx data bytes */
+	uint8_t Data[512];	/* Rx data bytes */
 
 } ISO9141_14230_RxMsg_S;
 
@@ -212,7 +212,7 @@ typedef struct {
 	uint32_t Timestamp;	/* Timestamp for the received msg */
 	uint32_t Flags;		/* Tx flags */
 	uint16_t Length;	/* Tx message length */
-	uint8_t Data[255];	/* Tx data bytes */
+	uint8_t Data[512];	/* Tx data bytes */
 
 } ISO9141_14230_TxMsg_S;
 
