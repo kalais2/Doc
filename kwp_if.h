@@ -301,5 +301,8 @@ void PassThruReadMsgResp_KWP (void);
 void App_ErrHandler(uint32_t , uint8_t );
 void App_InitData(ISO9141_14230_LinkInitRet_S*);
 
+void Set_Baudrate(uint32_t );
+void Set_Parity();
+
 #endif /* _CAN_IF_H_ */
 

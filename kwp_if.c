@@ -348,7 +348,7 @@ void KWP_TimeOut_handle(void)
 					{
 						if (l_RxLength != 0) 
 						{
-							if (KWP_PROTOCOL_ID == 0x04 /*get_ISO9141_or_14230()*/) 
+							if (KWP_PROTOCOL_ID == l_ProtocolId /*get_ISO9141_or_14230()*/) 
 							{
 								if (l_RxLength != l_PktLength) 
 								{
@@ -456,7 +456,7 @@ void KWP_TimeOut_handle(void)
 
 gboolean KWP_Timer_Handler(gpointer data)
 {
-	uint32_t fl_CurrTime;
+	uint32_t fl_CurrTime;      
 	uint16_t fl_Cnt;
 	uint8_t fl_ChkSum = CHECKSUM_OK;
 	/* Determine the status of Init Link */
@@ -1432,7 +1432,7 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 						/* clear ISO9141_14230_RxMsg_S_Buffer structure */
 						memset((void*)&ISO9141_14230_RxMsg_S_Buffer,0,sizeof(ISO9141_14230_RxMsg_S_Buffer));
 						
-						if(KWP_PROTOCOL_ID == 0x04 /*get_ISO9141_or_14230()*/) {
+						if(KWP_PROTOCOL_ID == l_ProtocolId /*get_ISO9141_or_14230()*/) {
 							l_PktLength = (uint8_t)l_buffer_recev;
 						}
 
@@ -1450,7 +1450,7 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 
 
 					else if (l_RxLength == l_LengthByte) {
-						if (KWP_PROTOCOL_ID == 0x04 /*get_ISO9141_or_14230()*/) {
+						if (KWP_PROTOCOL_ID == l_ProtocolId /*get_ISO9141_or_14230()*/) {
 							l_PktLength = (uint8_t)l_buffer_recev;
 						}
 					}
@@ -1715,7 +1715,8 @@ void ISO9141_14230_Init(const ISO9141_14230_Init_S * p_ISO9141_14230Init_S)
 	UART_InitStruct.rxQueueSz = 2700;
 	UART_InitStruct.txQueueSz = 2700;
 */
-	
+	Set_Baudrate(l_BaudRate);
+	Set_Parity();
 
 
 	/* Interrupt handling */
@@ -1890,6 +1891,8 @@ ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S * p_ISO9141_1423
 				/* Configure UART baud rate */
 
 				//UART_Set_Baudrate(uartFd, baudrate);
+				Set_Baudrate(l_BaudRate);
+				
 				break;
 		case LOOPBACK:
 				l_loopback = *(p_ISO9141_14230Cmd_SP->pData);
@@ -1946,8 +1949,35 @@ ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S * p_ISO9141_1423
 				break;
 		case PARITY:
 				/* Set Parity */
-		
-	
+				l_Parity = *p_ISO9141_14230Cmd_SP->pData;
+
+				/* Clear intermediate frame bytes if any */
+				l_UARTIntrTxIndex = 0;
+
+				/* Clear Intermediate Rx byte length ???? */
+				l_RxLength = 0;
+
+				/* Clear Tx length ???? */
+				l_TxLength = 0;
+				l_MsgReceived = FALSE;
+
+				//l_P3MINTimeout = !FALSE;
+				l_TxComp = FALSE;
+
+				/* Configure UART Parity */
+				
+				if (l_Parity == ODD_PARITY) {
+				
+					Set_Parity();
+				}
+				else if (l_Parity == EVEN_PARITY) {
+				
+					Set_Parity();
+				}
+				else {
+				
+					Set_Parity();
+				}
 				break;
 		case DATA_BITS:
 				/* Clear temporary Tx and Rx variable */
@@ -1999,7 +2029,6 @@ ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S * p_ISO9141_1423
 		ISO9141_14230_LinkInit();	//To initialize communication link parameters for 5 Baud / Fast Init in Linux, we can use the stty command in the terminal.
 		break;
 	
-	#
 	case CLEAR_TX_BUFFER:	/* Clear Tx Buffers */
 
 		/* Set Length to 0 */
@@ -2127,8 +2156,7 @@ static bool ISO9141_14230_GetParity(void)
 	for (fl_Msk = 0; fl_Msk < l_DataBits; fl_Msk++) {
 
 		/* Check if 1 or 0 */
-		if (CHECK_BITU8(l_ISO9141_14230LinkInit_S.Data[0], fl_Msk)
-		    != FALSE) {
+		if (CHECK_BITU8(l_ISO9141_14230LinkInit_S.Data[0], fl_Msk) != FALSE) {
 			fl_CntOne++;
 		}
 	}
@@ -2636,17 +2664,17 @@ void App_InitData(ISO9141_14230_LinkInitRet_S *p_InitData_SP)
     uint16_t loop_count;
     uint8_t usb_tx[512] = {0};
     
-    uint32_t fl_ProtocolId = p_InitData_SP->ProtocolId;
+  //  uint32_t fl_ProtocolId = p_InitData_SP->ProtocolId; /* we can use existing l_ProtocolId */
 
     /* Prepare the USB transmit frame */
    
   
-    /*memcpy(&usb_tx[0], &protocol_id, sizeof(int));*/
+    /*memcpy(&usb_tx[0], &protocol_id, sizeof(int));*/ 
     
-    usb_tx[0] = (fl_ProtocolId >> 0) & 0xFF;
-    usb_tx[1] = (fl_ProtocolId >> 8) & 0xFF;
-    usb_tx[2] = (fl_ProtocolId >> 16) & 0xFF;
-    usb_tx[3] = (fl_ProtocolId >> 24) & 0xFF;
+    usb_tx[0] = (l_ProtocolId >> 0) & 0xFF;
+    usb_tx[1] = (l_ProtocolId >> 8) & 0xFF;
+    usb_tx[2] = (l_ProtocolId >> 16) & 0xFF;
+    usb_tx[3] = (l_ProtocolId >> 24) & 0xFF;
     
     usb_tx[4] = IOCTL_COMMAND;
     usb_tx[5] = p_InitData_SP->IOCtlId;
@@ -2723,6 +2751,14 @@ void App_ErrHandler(uint32_t protocol_id, uint8_t error_code)
    
 }
 
+void Set_Baudrate(uint32_t fl_BaudRate)
+{
+	
+}
+void Set_Parity()
+{
+	
+}
 
 
 
