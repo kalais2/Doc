@@ -132,6 +132,11 @@
 #define ECU_RESPCHKSUM_ERROR          ((uint8_t)0x09)
 #define RXQ_OVERFLOW                  ((uint8_t)0x0A)
 
+/* dummy macros for error handler */
+#define SND_MSG_CORRUPTED  ((uint8_t)0x0B)
+#define SND_ECU_RESP  ((uint8_t)0x0C)
+#define SND_ECU_RESPCHKSUM ((uint8_t)0x0D)
+
 /* UART Interrupt types */
 #define RX_INTR                      ((uint8_t)0x00)
 #define TX_INTR                      ((uint8_t)0x01)
@@ -188,7 +193,7 @@ typedef struct {
 typedef struct {
 	uint32_t Timestamp;	/* Rx timestamp */
 	uint16_t Length;	/* Length of the data bytes */
-	uint8_t ProtocolId;	/* Protocol Id */
+	uint32_t ProtocolId;	/* Protocol Id */
 	uint8_t IOCtlId;	/* Fast Init or 5 Baud */
 	uint8_t Data[512];	/* Key Bytes and Address byte
 							   inverse in case of 5 Baud or
@@ -291,8 +296,10 @@ static void ISO9141_14230_LinkInit(void);
 static uint8_t ISO9141_14230_GetChecksum(const uint8_t * , uint16_t , uint8_t);
 static bool ISO9141_14230_GetParity(void);
 
-void App_FirstByteRxd(uint8_t , uint32_t );
+void App_FirstByteRxd(uint32_t , uint32_t );
 void PassThruReadMsgResp_KWP (void);
+void App_ErrHandler(uint32_t , uint8_t );
+void App_InitData(ISO9141_14230_LinkInitRet_S*);
 
 #endif /* _CAN_IF_H_ */
 

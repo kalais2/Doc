@@ -4,7 +4,7 @@
 #include	<unistd.h>
 #include	<glib.h>
 #include	"kwp_if.h"
-#include        <hfcp.h>
+#include        "hfcp.h"
 
 
 #define FALSE 0
@@ -43,28 +43,24 @@ static uint32_t l_W3;		/* W3 timing parameter */
 static uint32_t l_W4;		/* W4 timing parameter */
 static uint32_t l_W5;		/* W5 idle time */
 static uint32_t l_TIDLE;	/* Idle time for Fast init */
-static uint32_t l_TINIL;	/* Low time for Fast init
-				   pattern */
-static uint32_t l_TWUP;		/* Wakeup time for Fast init
-				   pattern */
+static uint32_t l_TINIL;	/* Low time for Fast init pattern */
+static uint32_t l_TWUP;		/* Wakeup time for Fast init pattern */
 static uint32_t l_BaudRate;	/* Baud rate for UART */
-static volatile uint16_t l_UARTIntrTxIndex;	/* UART Interrupt Tx length
-						   calculation */
+static volatile uint16_t l_UARTIntrTxIndex;	/* UART Interrupt Tx length calculation */
 static volatile uint16_t l_RxLength;	/* Receive message length */
 static volatile uint16_t l_TxLength;	/* Transmit message length */
 static volatile uint16_t l_TxIndex;	/* Tx byte index */
-static uint8_t l_ProtocolId;	/* Protocol Id */
+static uint32_t l_ProtocolId;	/* Protocol Id */
 static uint8_t l_Parity;	/* Parity configuration */
 static uint8_t l_DataBits;	/* Number of data bits */
 static uint8_t l_FiveBaudMod;	/* Five baud mode */
-static volatile uint8_t l_InitStatus;	/* Status of Initialization of
-					   link */
-static volatile uint8_t l_BitPos;	/* Bit position for 5 Baud or
-					   Fast Init */
+static volatile uint8_t l_InitStatus;	/* Status of Initialization of link */
+static volatile uint8_t l_BitPos;	/* Bit position for 5 Baud or Fast Init */
 static uint8_t l_ConnectFlags;	/* Connect Flags */
 static uint16_t l_LengthByte;	/* Length byte index */
 static uint16_t l_PktLength;	/* Defines the packet length of Handling data wrt length */
 static uint32_t l_P1MAX_ExtendedTimeout;	/* Extended P1Max to find the maximum timeout for P1_Max */
+
 
 /* Queue variables */
 
@@ -75,10 +71,7 @@ static volatile bool l_TxComp;	/* Tx completion indication */
 static uint8_t l_InitTimer;	/* ISO 9141 / 14230 Timer for
 				   Initialization */
 
-/* static TimerHandle_t kwpTimerHandler       ; */
-
 /* FreeRTOS's returned timer handler, used for uart time guard and receive time out */
-
 
 static int baudrate;
 static int dataLength;
@@ -100,8 +93,6 @@ static bool l_p4min_timeout = false;
 
 static ISO9141_14230_QTYPE buffer_type;
 static uint16_t kwp_buffer_length;
-//static uint8_t kwp_tx_buffer[255];
-//static uint8_t kwp_Rx_buffer[255];
 
 /* RxMsg and TxMsg handle variable */
 bool kwp_RxMsg_received = FALSE;
@@ -145,7 +136,7 @@ void KWP_TimeOut_handle(void)
 			{
 				if(timeout_param_s_var.timer_param >= TIME_COUNTER_TO_MS)
 				{
-					//print error code
+					/* print error code */
 					switch (timeout_param_s_var.wait_param_e){
 
 					case PATTERN_BYTE_WAIT:
@@ -163,6 +154,7 @@ void KWP_TimeOut_handle(void)
 							timer_init_flag = false;
 							
 							// error handler
+							App_ErrHandler(l_ProtocolId,PATTERN_BYTE_TIMEOUT);
 							break;
 					case KB1_WAIT:
 							/*KB1 error*/
@@ -179,6 +171,7 @@ void KWP_TimeOut_handle(void)
 							timer_init_flag = false;
 							
 							// error handler
+							App_ErrHandler(l_ProtocolId, KEY_BYTE1_TIMEOUT);
 							break;
 					case KB2_WAIT:
 							/*KB2 error*/
@@ -195,6 +188,7 @@ void KWP_TimeOut_handle(void)
 							timer_init_flag = false;
 							
 							// error handler
+							App_ErrHandler(l_ProtocolId, KEY_BYTE2_TIMEOUT);
 							break;
 					case INV_KB2_WAIT:
 							
@@ -238,6 +232,8 @@ void KWP_TimeOut_handle(void)
 							timer_init_flag = false;
 							
 							// error handler
+							App_ErrHandler(l_ProtocolId, ADDRESS_BYTE_TIMEOUT);
+							
 							break;
 					default:
 							break;
@@ -260,9 +256,7 @@ void KWP_TimeOut_handle(void)
 			{
 				if(timeout_param_s_var.timer_param >= TIME_COUNTER_TO_MS)
 				{	
-					/* Check if length is nonzero. If no bytes are received then
-						   timeout on Fast Init ECU response else indicate end of
-						   Fast Init ECU response */
+					/* Check if length is nonzero. If no bytes are received then timeout on Fast Init ECU response else indicate end of Fast Init ECU response */
 					if((timeout_param_s_var.wait_param_e != P3MIN_WAIT)||(timeout_param_s_var.wait_param_e != P4MIN_WAIT)){
 					
 						if (l_RxLength != 0) {
@@ -271,9 +265,6 @@ void KWP_TimeOut_handle(void)
 
 							/* Update the length information to the Length Queue */
 							
-					//		ISO9141_14230_AddToQ(ISO9141_14230_LEN_Q,(const ISO9141_14230_Q_S *)&l_RxLength, 0);
-							
-							buffer_type = ISO9141_14230_LEN_Q ;
 							kwp_buffer_length = l_RxLength;
 
 							/* Reset Rx Length */
@@ -282,8 +273,7 @@ void KWP_TimeOut_handle(void)
 							/* Indicate Message received */
 							l_MsgReceived = !FALSE;
 
-							/* If P3 min is less than P1max then next Tx could be
-							   started immediately else wait for P3min - P1max */
+							/* If P3 min is less than P1max then next Tx could be started immediately else wait for P3min - P1max */
 							if (l_P3MIN < l_P1MAX) {
 
 								/* Update the status of P3min timeout */
@@ -297,10 +287,6 @@ void KWP_TimeOut_handle(void)
 								/* reset timer_count */
 								KWP_reset_TimeOut();
 								KWP_Set_TimeOut((l_P3MIN - l_P1MAX),(P3MIN_P1MAX_WAIT));
-						//		UART_Change_RxTimeOut(UART_CH_ID_1,(l_P3MIN - l_P1MAX));
-						//		UART_Restart_RxTimeOut(UART_CH_ID_1);
-						
-								
 							}
 						}
 
@@ -308,20 +294,12 @@ void KWP_TimeOut_handle(void)
 
 							/* Timeout on Fast Init ECU reponse */
 							/* Call application error handler */
-						//	App_ErrHandler(l_ProtocolId,FASTINIT_RESP_TIMEOUT);
+						        App_ErrHandler(l_ProtocolId,FASTINIT_RESP_TIMEOUT);
 
 							/* Set Link Init failure */
 							l_InitStatus = LINKINIT_FAIL;
 
-							/* Stop Timer for Initialization for
-							   ISO 9141/14230 */
-							//                  stop_time_stamp(l_InitTimer);
-
-							/* Disable Rx timeout */
-							//UART_Change_RxTimeOut(UART_CH_ID_1, 0);
-
-							/* Update the status of P3min timeout - Could load the Tx
-							   bytes */
+							/* Update the status of P3min timeout - Could load the Tx bytes */
 							l_P3MINTimeout = !FALSE;
 						}
 					}
@@ -344,7 +322,7 @@ void KWP_TimeOut_handle(void)
 						}
 						else
 						{
-						
+							/* Do nothing */
 						}
 						
 						
@@ -376,14 +354,12 @@ void KWP_TimeOut_handle(void)
 								{
 								
 								/* needs to do error handler */
-								//	App_ErrHandler(l_ProtocolId,ECU_RESP_TIMEOUT); needs to implement error handler
+									App_ErrHandler(l_ProtocolId,ECU_RESP_TIMEOUT); 
 								#if 0
 									l_P1MAX_ExtendedTimeout += l_P1MAX;
 									if (l_P1MAX_ExtendedTimeout < P1_MAX_EXTENDED_TIMEOUT) {
 
 										/* Load the RxTimeout to determine end of frame */
-									//	UART_Change_RxTimeOut(UART_CH_ID_1,l_P1MAX);
-									//	UART_Restart_RxTimeOut(UART_CH_ID_1);
 										timer_handler_flag = false;
 										timer_counter = 0;
 										KWP_Set_TimeOut(l_P1MAX,P1MAX_WAIT);
@@ -408,14 +384,7 @@ void KWP_TimeOut_handle(void)
 							/* End of frame indication */
 							l_P1MAX_ExtendedTimeout = 0;
 
-							/* Subtract time spent for P1 MAX */ 
-						//	fl_CurrTime = fl_CurrTime - (l_P1MAX);
-
-							/* Update Rx timestamp */
-						//	ISO9141_14230_AddToQ (ISO9141_14230_TIME_Q,(const ISO9141_14230_Q_S *)&fl_CurrTime, 0);
-
-							/* Update the length information to the Length Queue */
-						//	ISO9141_14230_AddToQ (ISO9141_14230_LEN_Q,(const ISO9141_14230_Q_S *) &l_RxLength, 0);
+						
 
 							/* Reset Rx Length */
 							l_RxLength = 0;
@@ -450,14 +419,10 @@ void KWP_TimeOut_handle(void)
 
 						/* Timeout on ECU reponse for Tester request */
 						/* Call application error handler */
-					//	App_ErrHandler(l_ProtocolId,ECU_RESP_TIMEOUT); needs to implement error handler 
+					        App_ErrHandler(l_ProtocolId,ECU_RESP_TIMEOUT); 
 
 						/* Minimum time P3min has elapsed. Next Tx can be started */
 						l_P3MINTimeout = !FALSE;
-						
-						/* Disable Rx timeout */
-					//	UART_Change_RxTimeOut(UART_CH_ID_1, 0);
-
 						/* reset timer_count */
 						KWP_reset_TimeOut();					
 						}
@@ -467,9 +432,6 @@ void KWP_TimeOut_handle(void)
 
 					/* Minimum time P3min has elapsed. Next Tx can be started */
 					l_P3MINTimeout = !FALSE;
-
-					/* Disable Rx timeout */
-			//		UART_Change_RxTimeOut(UART_CH_ID_1, 0);
 			
 					/* reset timer_count */
 					KWP_reset_TimeOut();
@@ -500,10 +462,6 @@ gboolean KWP_Timer_Handler(gpointer data)
 	/* Determine the status of Init Link */
 	if (l_InitStatus == LINKINIT_PENDING) {
 
-		/* Obtain Current Time */
-		//get_time_stamp(l_InitTimer, &fl_CurrTime);
-		//get_data_logging_time_stamp(&fl_CurrTime);
-		//get_time_stamp(&fl_CurrTime);
 		timer_counter++;
 
 		/* Determine the type of initialization */
@@ -511,8 +469,7 @@ gboolean KWP_Timer_Handler(gpointer data)
 
 			/* 5 Baud Initialization */
 
-			/* Check if the Bus was idle for W5 or W0. If idle perform 5 Baud
-			   initialization else wait till W5 or W0 */
+			/* Check if the Bus was idle for W5 or W0. If idle perform 5 Baud initialization else wait till W5 or W0 */
 			if(TIME_COUNTER_TO_MS == l_5BaudIdleTime) { 
 				timer_init_flag = true;
 			    //timer_counter = 0;
@@ -528,11 +485,9 @@ gboolean KWP_Timer_Handler(gpointer data)
 					//ISO9141_14230_DisableBusMonitor();
 
 					/* Send the Start Bit */
-		  	                 //Set_Pin_Low(KW_TXD);    
 		  	                 T_gpio_PIN_set(&GPIO_KWP_TXD, 0);                               
 
 					/* Update the Init reference time */
-					//l_RefInitTime = fl_CurrTime;
 					timer_counter = 0;
 
 					/* Increment Bit position to Transmit the next bit */
@@ -541,8 +496,7 @@ gboolean KWP_Timer_Handler(gpointer data)
 
 				/* Send Address byte */
 
-				/* Check if the Bit position neither in Start or Stop bit
-				   position and also check if FIVE Baud time has elapsed since
+				/* Check if the Bit position neither in Start or Stop bit position and also check if FIVE Baud time has elapsed since
 				   the transmission of Start bit */
 				else if ((l_BitPos > START_BIT_POS) && (l_BitPos < STOP_BIT_POS) && (TIME_COUNTER_TO_MS >= FIVE_BAUD_TIME)) {
 
@@ -553,14 +507,12 @@ gboolean KWP_Timer_Handler(gpointer data)
 						if (CHECK_BITU8(l_ISO9141_14230LinkInit_S.Data[0],(l_BitPos - 1)) != FALSE) {
 
 							/* Bit is 1 - Set K Line */
-							//Set_Pin_High(KW_TXD);
 							T_gpio_PIN_set(&GPIO_KWP_TXD, 1); 
 						}
 
 						else {
 
 							/* Bit is 0 - Reset K Line */
-			                               // Set_Pin_Low(KW_TXD);
 			                               T_gpio_PIN_set(&GPIO_KWP_TXD, 0); 
 						}
 
@@ -568,7 +520,6 @@ gboolean KWP_Timer_Handler(gpointer data)
 						l_BitPos++;
 
 						/* Update Reference Init time to current time */
-						//l_RefInitTime = fl_CurrTime;
 						timer_counter = 0;
 					}
 
@@ -600,19 +551,16 @@ gboolean KWP_Timer_Handler(gpointer data)
 					/* If Parity is configured then Transmit the Parity bit */
 					else {
 
-						/* Based on the Parity configuration determine if the
-						   Parity bit is 0 or 1 */
+						/* Based on the Parity configuration determine if the Parity bit is 0 or 1 */
 						if (ISO9141_14230_GetParity() != FALSE) {
 
 							/* Parity Bit is 1 - Set K Line */
-							// Set_Pin_High(KW_TXD);
 							T_gpio_PIN_set(&GPIO_KWP_TXD, 1); 
 						}
 
 						else {
 
 							/* Parity Bit is 0 - Reset K Line */
-				                        //Set_Pin_Low(KW_TXD);
 				                        T_gpio_PIN_set(&GPIO_KWP_TXD, 0); 
 						}
 
@@ -634,7 +582,6 @@ gboolean KWP_Timer_Handler(gpointer data)
 						}
 
 						/* Update Reference Init time to current time */
-						//l_RefInitTime = fl_CurrTime;
 						timer_counter = 0;
 					}
 				}
@@ -652,13 +599,10 @@ gboolean KWP_Timer_Handler(gpointer data)
 				if ((l_BitPos == STOP_BIT_POS) && (TIME_COUNTER_TO_MS >= FIVE_BAUD_TIME)) {
 
 					/* Stop Bit */
-			                //Set_Pin_High(KW_TXD);
 			                T_gpio_PIN_set(&GPIO_KWP_TXD, 1); 
 
-					/* Update the Init reference time */
-					//l_RefInitTime = fl_CurrTime;
-					
-					 timer_counter = 0;
+					/* Update the Init reference time */			
+					timer_counter = 0;
 					 
 					/* Increment bit position to indicate no more bits - All
 					   bits are sent */
@@ -672,28 +616,12 @@ gboolean KWP_Timer_Handler(gpointer data)
 					if (CHECK_BITU8(l_ConnectFlags, BIT_LINECONF) == FALSE) {
 
 						/* Disable L line after Initialization ?????? */
-				                //Set_Pin_Low(KLINE_LLINE_SLCT);
 				                T_gpio_PIN_set(&GPIO_KLINE_LLINE_SLCT, 0); 
 					}
 
 					/* Configure the UART Tx as Peripheral */
-					//                Config_Pin_UART_Mode(KW_TXD);
+					// Config_Pin_UART_Mode(KW_TXD);
 
-					/* Enable UART communication */
-					
-					/*uartClearTxQueue(UART_CH_ID_1, ISR_MODE);
-					uartClearRxQueue(UART_CH_ID_1, ISR_MODE);
-					enable_uart(UART_CH_ID_1);
-			                UART_MidEnable(UART_CH_ID_1);
-					uartMidEnable(UART_CH_ID_1);
-					
-		                        UART_ITConfig (UART_CH_ID_1,IER_THRE,ENABLE);
-			                UART_ITConfig (UART_CH_ID_1,IER_RBR,ENABLE);*/
-
-					/* Load the UART Receive Timeout W1 - RETTO */
-					//UART_Change_RxTimeOut(UART_CH_ID_1,l_W1);
-					//UART_Restart_RxTimeOut(UART_CH_ID_1);
-					
 					/* reset timer_count */
 					KWP_reset_TimeOut();
 					KWP_Set_TimeOut(l_W1, PATTERN_BYTE_WAIT);
@@ -706,9 +634,6 @@ gboolean KWP_Timer_Handler(gpointer data)
 				/* Check for Rx bytes from ECU after completion of Stop bit */
 				else if (l_BitPos > (STOP_BIT_POS + 1)) {
 
-					/* Check for data based on Length in the Queue */
-					//if (ISO9141_14230_DelFromQ(ISO9141_14230_LEN_Q, (ISO9141_14230_Q_S *) &l_ISO9141_14230LinkInitRet_S.Length) != ISO9141_14230_Q_EMPTY) {
-					
 					/* getting length from buffer */
 					l_ISO9141_14230LinkInitRet_S.Length = kwp_buffer_length ;
 					
@@ -719,17 +644,9 @@ gboolean KWP_Timer_Handler(gpointer data)
 
 							/* Obtain Rx data upto the frame Length from the
 							   UART */
-							/*  
-							This function is moved to UART_Handler 
-							for (fl_Cnt = 0; fl_Cnt < l_ISO9141_14230LinkInitRet_S.Length; fl_Cnt++) {
-
-								// UART_MidRecv(UART_CH_ID_1, (void*)&l_ISO9141_14230LinkInitRet_S.Data[fl_Cnt],1);
-								// uartMidRecv(UART_CH_ID_1,(uint8_t *)&l_ISO9141_14230LinkInitRet_S.Data[fl_Cnt], 1);
-							}
-							*/
-
-							/* Based on the 5 Baud configuration perform
-							   operations upon reception of Key bytes */
+							/*  UART_MidRecv, uartMidRecv these functions are moved to UART_Handler */ 
+							
+							/* Based on the 5 Baud configuration perform operations upon reception of Key bytes */
 							if ((l_FiveBaudMod == FIVEBAUD_MODE_ZERO) || (l_FiveBaudMod == FIVEBAUD_MODE_ONE))
 							{
 
@@ -748,8 +665,6 @@ gboolean KWP_Timer_Handler(gpointer data)
 								   - RETTO */
 								/* initially it was l_w4 Since it is not time out Changed the timing
 								   limit shud be 25 to 50 ms - if changed to only l_W4 5Baud will not work */
-								//UART_Change_RxTimeOut(UART_CH_ID_1, l_W4 - 19500);
-								//UART_Restart_RxTimeOut(UART_CH_ID_1);
 								
 								/* reset timer_count */
 								KWP_reset_TimeOut();
@@ -770,8 +685,6 @@ gboolean KWP_Timer_Handler(gpointer data)
 
 								/* Load Max Rx timeout for Address inverse byte
 								   W4 - RETTO */
-								//UART_Change_RxTimeOut(UART_CH_ID_1, W4_MAX_TIME);
-								//UART_Restart_RxTimeOut(UART_CH_ID_1);
 								
 								/* reset timer_count */
 								KWP_reset_TimeOut();
@@ -797,15 +710,14 @@ gboolean KWP_Timer_Handler(gpointer data)
 								/* Store Init type */
 								l_ISO9141_14230LinkInitRet_S.IOCtlId = FIVE_BAUD_INIT;
 
-								/* Store Only Key Bytes - Store the Keybytes at
-								   0th and 1st element of the array and modify
+								/* Store Only Key Bytes - Store the Keybytes at 0th and 1st element of the array and modify
 								   length to indicate only Keybytes */
 								l_ISO9141_14230LinkInitRet_S.Data[0] = l_ISO9141_14230LinkInitRet_S.Data[1];
 								l_ISO9141_14230LinkInitRet_S.Data[1] = l_ISO9141_14230LinkInitRet_S.Data[2];
 								l_ISO9141_14230LinkInitRet_S.Length = 2;
 
 								/* Report to the Call Back function */
-								//App_InitData((void *)&l_ISO9141_14230LinkInitRet_S);
+								App_InitData((void *)&l_ISO9141_14230LinkInitRet_S);
 
 								/* Set the Link Init Status to Done */
 								l_InitStatus = LINKINIT_DONE;
@@ -819,11 +731,7 @@ gboolean KWP_Timer_Handler(gpointer data)
 								/* Indicate response bytes received */
 								l_MsgReceived = !FALSE;
 
-								/* Load P3 min timeout for minimum time before
-								   Data transmission */
-								//UART_Change_RxTimeOut(UART_CH_ID_1, l_P3MIN);
-								//UART_Restart_RxTimeOut(UART_CH_ID_1);
-								
+								/* Load P3 min timeout for minimum time before Data transmission */
 								/* reset timer_count */
 								KWP_reset_TimeOut();
 								KWP_Set_TimeOut(l_P3MIN, P3MIN_WAIT);
@@ -845,10 +753,8 @@ gboolean KWP_Timer_Handler(gpointer data)
 						    (l_ISO9141_14230LinkInitRet_S.Length > ADDRESS_BYTE_INV_POS) {
 
 							/* Store the Address byte inverse after Key bytes */
-							// This function moved to UART handler
-							// UART_MidRecv(UART_CH_ID_1,(void*)&l_ISO9141_14230LinkInitRet_S.Data[l_ISO9141_14230LinkInitRet_S.Length-1], 1);
-							//uartMidRecv(UART_CH_ID_1,(uint8_t *) &l_ISO9141_14230LinkInitRet_S.Data[l_ISO9141_14230LinkInitRet_S.Length - 1], 1);
-
+							/* UART_MidRecv, uartMidRecv These functions are  moved to UART handler*/
+						
 							/* Based on the 5 Baud configuration perform
 							   operations upon reception of Address inverse
 							   byte */
@@ -870,19 +776,15 @@ gboolean KWP_Timer_Handler(gpointer data)
 								/* Store Init type */
 								l_ISO9141_14230LinkInitRet_S.IOCtlId = FIVE_BAUD_INIT;
 
-								/* Store Only Key Bytes - Store the Keybytes at
-								   0th and 1st element of the array and modify
+								/* Store Only Key Bytes - Store the Keybytes at 0th and 1st element of the array and modify
 								   length to indicate only Keybytes */
 								l_ISO9141_14230LinkInitRet_S.Data[0] = l_ISO9141_14230LinkInitRet_S.Data[1];
 								l_ISO9141_14230LinkInitRet_S.Data[1] = l_ISO9141_14230LinkInitRet_S.Data[2];
 								l_ISO9141_14230LinkInitRet_S.Length = 2;
 
 								/* Report to the Call Back function */
-								//App_InitData((void *)&l_ISO9141_14230LinkInitRet_S);
+								App_InitData((void *)&l_ISO9141_14230LinkInitRet_S);
 
-								/* Stop Timer for Timestamp for
-								   ISO 9141/14230 */
-//                                				stop_time_stamp(l_InitTimer);
 
 								/* Set the Link Init Status to Done */
 								l_InitStatus = LINKINIT_DONE;
@@ -891,10 +793,7 @@ gboolean KWP_Timer_Handler(gpointer data)
 								/* Indicate response bytes received */
 								l_MsgReceived = !FALSE;
 
-								/* Load P3 min timeout for minimum time before
-								   Data transmission */
-								//UART_Change_RxTimeOut(UART_CH_ID_1, l_P3MIN);
-								//UART_Restart_RxTimeOut(UART_CH_ID_1);
+								/* Load P3 min timeout for minimum time before Data transmission */
 								
 								/* reset timer_count */
 								KWP_reset_TimeOut();
@@ -913,7 +812,7 @@ gboolean KWP_Timer_Handler(gpointer data)
 					}
 					else
 					{
-					
+						/* Do nothing */
 					}
 				}
 
@@ -930,8 +829,7 @@ gboolean KWP_Timer_Handler(gpointer data)
 
 			/* Fast Init */
 	
-			/* Check if the Bus was idle for TIdle. If idle perform Fast
-			   initialization else wait till TIdle */
+			/* Check if the Bus was idle for TIdle. If idle perform Fast initialization else wait till TIdle */
 			if (TIME_COUNTER_TO_MS >= l_TIDLE) {
 				timer_init_flag = true;
 			}
@@ -942,67 +840,42 @@ gboolean KWP_Timer_Handler(gpointer data)
 
 						/* Disable bus monitoring for Idle time. Idle time is
 						   achieved so no more updation of Ref Idle time */
-						//ISO9141_14230_DisableBusMonitor();
+						/* ISO9141_14230_DisableBusMonitor(); */
 
 						/* TiniL pattern */
-						// Set_Pin_Low(KW_TXD);
 						T_gpio_PIN_set(&GPIO_KWP_TXD, 0);
 						
 						/* Update the Init reference time */
-						//l_RefInitTime = fl_CurrTime;
 						timer_counter = 0;
 
 						/* Increment l_BitPos to perform rest of the pattern */
 						l_BitPos++;
 					}
 
-					else if ((l_BitPos == WKUP_TWUP) &&
-						 (TIME_COUNTER_TO_MS >=
-						  l_TINIL)) {
+					else if ((l_BitPos == WKUP_TWUP) && (TIME_COUNTER_TO_MS >= l_TINIL)) {
 
 						/* TWup - TiniL pattern */
-						// Set_Pin_High(KW_TXD);
 						T_gpio_PIN_set(&GPIO_KWP_TXD, 1);
 						/* Time not updated to represent the rest of Twup */
 						/* Increment l_BitPos to indicate end of wakeup pattern */
 						l_BitPos++;
 					}
 
-					else if (((l_BitPos == WKUP_STARTREQ) &&
-						 (TIME_COUNTER_TO_MS >=
-						  l_TWUP)) || (fastinit_start_comm_req_start_flag =! FALSE)){
+					else if (((l_BitPos == WKUP_STARTREQ) && (TIME_COUNTER_TO_MS >= l_TWUP)) || (fastinit_start_comm_req_start_flag =! FALSE)){
 
 						/* Check if L line was configured. If yes then disable */
-						if (CHECK_BITU8
-						    (l_ConnectFlags,
-						     BIT_LINECONF) == FALSE) {
+						if (CHECK_BITU8(l_ConnectFlags, BIT_LINECONF) == FALSE) {
 
 							/* Disable L line after Initialization ?????? */
-							//Set_Pin_Low(KLINE_LLINE_SLCT);
 							T_gpio_PIN_set(&GPIO_KLINE_LLINE_SLCT, 0);
 						}
 
-						/* Configure UART Tx as Peripheral */
-						// Config_Pin_UART_Mode(KW_TXD);
-
-						/* Enable UART communication */
-						//uartClearTxQueue(UART_CH_ID_1,ISR_MODE);
-						//uartClearRxQueue(UART_CH_ID_1,ISR_MODE);
-
-						//enable_uart(UART_CH_ID_1);
-						//UART_MidEnable(UART_CH_ID_1);
-						//uartMidEnable(UART_CH_ID_1);
-
-						//UART_ITConfig (UART_CH_ID_1,IER_THRE,ENABLE);
-						//UART_ITConfig (UART_CH_ID_1,IER_RBR,ENABLE);
-
+						
 						/* Configure the Receive time out for UART - RETTO */
-						/* If P3 min is less than P1max then limit the time to
-						   P1max as P1 max is the minimum time to determine the
+						/* If P3 min is less than P1max then limit the time to P1max as P1 max is the minimum time to determine the
 						   end of frame else load P3min */
 						if (l_P3MIN < l_P1MAX) {
-							//UART_Change_RxTimeOut(UART_CH_ID_1, l_P1MAX);
-							//UART_Restart_RxTimeOut(UART_CH_ID_1);
+							
 							/* reset timer_count */
 							KWP_reset_TimeOut();
 							KWP_Set_TimeOut(l_P1MAX, P1MAX_WAIT);
@@ -1010,8 +883,6 @@ gboolean KWP_Timer_Handler(gpointer data)
 						}
 
 						else {
-							//UART_Change_RxTimeOut(UART_CH_ID_1,l_P3MIN + 50000);
-							//UART_Restart_RxTimeOut(UART_CH_ID_1);
 							
 							/* reset timer_count */
 							KWP_reset_TimeOut();
@@ -1064,21 +935,14 @@ gboolean KWP_Timer_Handler(gpointer data)
 
 					else if (l_BitPos > WKUP_STARTREQ) {
 
-						/* Check if ECU response has been received based on
-						   RxLength information */
+						/* Check if ECU response has been received based on RxLength information */
 						//if (ISO9141_14230_DelFromQ(ISO9141_14230_LEN_Q, (void *)&l_ISO9141_14230LinkInitRet_S.Length)!= ISO9141_14230_Q_EMPTY) {
 							l_ISO9141_14230LinkInitRet_S.Length = kwp_buffer_length;
 							if(l_ISO9141_14230LinkInitRet_S.Length != 0) {
 
 							/* Obtain bytes from the UART */
-							// This function moved to UART handler
-							/*for (fl_Cnt = 0; fl_Cnt < l_ISO9141_14230LinkInitRet_S.Length; fl_Cnt++) {
-
-								//UART_MidRecv(UART_CH_ID_1,
-								//(void*)&l_ISO9141_14230LinkInitRet_S.Data[fl_Cnt], 1);
-								//uartMidRecv(UART_CH_ID_1,(uint8_t *) &l_ISO9141_14230LinkInitRet_S.Data[fl_Cnt], 1);
-							}
-							*/
+							/* UART_MidRecv, uartMidRecv these functions are moved to UART handler */
+							
 							/* Verify checksum if configured */
 							if (CHECK_BITU8(l_ConnectFlags,BIT_CHKSUM) == FALSE) {
 
@@ -1111,7 +975,7 @@ gboolean KWP_Timer_Handler(gpointer data)
 									l_ISO9141_14230LinkInitRet_S.IOCtlId = FAST_INIT;
 
 									/* Report to the Call Back function */
-									//App_InitData((void *)&l_ISO9141_14230LinkInitRet_S);
+									App_InitData((void *)&l_ISO9141_14230LinkInitRet_S);
 								}
 
 								/* Report Checksum error */
@@ -1125,11 +989,10 @@ gboolean KWP_Timer_Handler(gpointer data)
 									
 
 									/* Call application error handler */
-									//App_ErrHandler(l_ProtocolId,ECU_RESPCHKSUM_ERROR);
+									App_ErrHandler(l_ProtocolId,ECU_RESPCHKSUM_ERROR);
 								}
 
-								/* Stop Timer for Initialization for
-								   ISO 9141/14230 */
+								/* Stop Timer for Initialization for ISO 9141/14230 */
 								//  stop_time_stamp(l_InitTimer);
 							}
 
@@ -1142,9 +1005,6 @@ gboolean KWP_Timer_Handler(gpointer data)
 								/*reset init timer flag*/
 								timer_init_flag = false;
 
-								/* Update the Timestamp */
-								//ISO9141_14230_DelFromQ(ISO9141_14230_TIME_Q,(ISO9141_14230_Q_S *)&l_ISO9141_14230LinkInitRet_S.Timestamp);
-
 								/* Store Protocol Id */
 								l_ISO9141_14230LinkInitRet_S.
 								    ProtocolId =
@@ -1155,11 +1015,10 @@ gboolean KWP_Timer_Handler(gpointer data)
 								    IOCtlId = FAST_INIT;
 
 								/* Report to the Call Back function */
-								//App_InitData((void *)&l_ISO9141_14230LinkInitRet_S);
+								App_InitData((void *)&l_ISO9141_14230LinkInitRet_S);
 
-								/* Stop Timer for Timestamp for
-								   ISO 9141/14230 */
-				//                            stop_time_stamp(l_InitTimer);
+								/* Stop Timer for Timestamp for ISO 9141/14230 */
+				                                //stop_time_stamp(l_InitTimer);
 						}
 						
 					kwp_buffer_length = 0;               // doubt, not sure.
@@ -1263,7 +1122,7 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 				else {
 
 					/* Retrieve Tx data byte from Tx Queue */
-		//			ISO9141_14230_GetByteFromQ (ISO9141_14230_TX_Q, l_UARTIntrTxIndex, &fl_TxByte);  call send TX msg function
+		                        //ISO9141_14230_GetByteFromQ (ISO9141_14230_TX_Q, l_UARTIntrTxIndex, &fl_TxByte);  call send TX msg function
 					
 					/* check send msg, How tx buffer updated ? and needs to check where will clear buffer*/
 					buffer_type = ISO9141_14230_TX_Q;
@@ -1274,24 +1133,19 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 				/* Check for Corruption on the bus */
 
 				/* Compare Received byte with Transmitted byte */
-				// UART_MidRecv(UART_CH_ID_1, &fl_UARTRxByte, 1);
-	//		 	uartMidRecv(UART_CH_ID_1, (uint8_t *) & fl_UARTRxByte, 1);
+	
+	
 				fl_UARTRxByte =	(uint8_t)l_buffer_recev;
 				
 				if (fl_UARTRxByte != fl_TxByte) {
 
 					/* Corruption on the Bus */
 					/* Abort Transmission - Flush buffers */
-					
-	//				uartmsgcorrupt = 1;
-	//				uartClearTxQueue(UART_CH_ID_1, ISR_MODE);
-	//				uartClearRxQueue(UART_CH_ID_1, ISR_MODE);
 
 					/* Call application error handler */
-	//				App_ErrHandler(l_ProtocolId, MSG_CORRUPTED);  call error handler
+					App_ErrHandler(l_ProtocolId, MSG_CORRUPTED); 
 
-					/* If Tx byte is from Initialization set status to
-					   failure */
+					/* If Tx byte is from Initialization set status to failure */
 					if (l_InitStatus == LINKINIT_PENDING) {
 					
 						l_InitStatus = LINKINIT_FAIL;
@@ -1303,8 +1157,7 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 						// stop_time_stamp(l_InitTimer);
 					}
 
-					/* Disable Rx Timeout */
-					//UART_Change_RxTimeOut(UART_CH_ID_1, 0);
+					
 					
 				//	timer_handler_flag = false; // check it's need .
 				//	timer_counter = 0;
@@ -1353,9 +1206,6 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 		                    UART_Change_RxTimeOut(AT91C_BASE_US0, l_BaudRate,l_P3MIN);
 		                    UART_Restart_RxTimeOut(AT91C_BASE_US0);
 		                }*/
-						//	UART_Change_RxTimeOut (UART_CH_ID_1, P2_MAX_TIME);
-						//	UART_Restart_RxTimeOut(UART_CH_ID_1);
-						
 							KWP_reset_TimeOut();
 							KWP_Set_TimeOut(P2_MAX_TIME,P2_MAX_TIME_WAIT);
 
@@ -1387,8 +1237,7 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 							/* Store Init type */
 							l_ISO9141_14230LinkInitRet_S.IOCtlId = FIVE_BAUD_INIT;
 
-							/* Store Only Key Bytes - Store the Keybytes at
-							   0th and 1st element of the array and modify
+							/* Store Only Key Bytes - Store the Keybytes at 0th and 1st element of the array and modify
 							   length to indicate only Keybytes */
 							l_ISO9141_14230LinkInitRet_S.Data[0] = l_ISO9141_14230LinkInitRet_S.Data[1];
 							l_ISO9141_14230LinkInitRet_S.Data[1] = l_ISO9141_14230LinkInitRet_S.Data[2];
@@ -1396,21 +1245,17 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 
 							/* Report Link init done to the Call Back
 							   function */
-	//						App_InitData((void *) &l_ISO9141_14230LinkInitRet_S); call init funct
+							App_InitData((void *) &l_ISO9141_14230LinkInitRet_S); 
 
-							/* Stop Timer for Timestamp for
-							   ISO 9141/14230 */
-							//                       stop_time_stamp(l_InitTimer);
+							/* Stop Timer for Timestamp for ISO 9141/14230 */
+							// stop_time_stamp(l_InitTimer);
 
 							/* Indicate response bytes received */
 							l_MsgReceived = !FALSE;
 
 							/* Load P3 min timeout for minimum time before
 							   Data transmission */
-							   
-	//						UART_Change_RxTimeOut (UART_CH_ID_1, l_P3MIN);
-	//						UART_Restart_RxTimeOut(UART_CH_ID_1);
-	
+						
 							/* reset timer_count */
 							KWP_reset_TimeOut();
 							
@@ -1453,16 +1298,12 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 						if (l_RxLength == PATTERN_BYTE_POS) {
 							
 							l_ISO9141_14230LinkInitRet_S.Data[l_RxLength] = (uint8_t)l_buffer_recev;
-							/* call Uart receive */
-							//uartMidRecv(UART_CH_ID_1,(uint8_t *) &l_ISO9141_14230LinkInitRet_S.Data[l_RxLength], 1);
+							/* call Uart receive uartMidRecv- moved to uart handler */
 							
 							/* Received the pattern byte - Increment the length */
 							l_RxLength++;
 
 							/* Load the Receive timeout W2 - RETTO */
-							//UART_Change_RxTimeOut(UART_CH_ID_1, l_W2);
-							//UART_Restart_RxTimeOut(UART_CH_ID_1);
-							
 							/* reset timer_count */
 							KWP_reset_TimeOut();
 							KWP_Set_TimeOut(l_W2,KB1_WAIT);
@@ -1471,17 +1312,14 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 
 						else if (l_RxLength == KEY_BYTE1_POS) {
 
-							/* call Uart receive */
-							//uartMidRecv(UART_CH_ID_1,(uint8_t *) &l_ISO9141_14230LinkInitRet_S.Data[l_RxLength], 1);
+							/* call Uart receive uartMidRecv- moved to uart handler */
 							l_ISO9141_14230LinkInitRet_S.Data[l_RxLength] = (uint8_t) l_buffer_recev;
 							
 							/* Received the Key byte 1 - Increment the length */
 							l_RxLength++;
 
 							/* Load the Receive timeout W3 - RETTO */
-							//UART_Change_RxTimeOut(UART_CH_ID_1, l_W3);
-							//UART_Restart_RxTimeOut(UART_CH_ID_1);
-						
+	
 							/* reset timer_count */
 							KWP_reset_TimeOut();
 							
@@ -1491,23 +1329,19 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 
 						else if (l_RxLength == KEY_BYTE2_POS) {
 
-							/* call Uart receive */
-							//uartMidRecv(UART_CH_ID_1,(uint8_t *) &l_ISO9141_14230LinkInitRet_S.Data[l_RxLength], 1);
+							/* call Uart receive uartMidRecv- moved to uart handler */
 							l_ISO9141_14230LinkInitRet_S.Data[l_RxLength] = (uint8_t) l_buffer_recev;
 							/* Received the Key byte 2 - Increment the length */
 							l_RxLength++;
 
 							/* Update the length information to the Length Queue */
-							//ISO9141_14230_AddToQ(ISO9141_14230_LEN_Q,(const ISO9141_14230_Q_S*)&l_RxLength, 0); call function uart read()
 							/* adding length in buffer */
-							buffer_type = ISO9141_14230_LEN_Q ;
 							kwp_buffer_length = l_RxLength;
 							
 
 							/* Disable Rx Timeout - For Address inverse byte
 							   Rx timeout is loaded based on the 5 Baud mode */
 							
-							//UART_Change_RxTimeOut(UART_CH_ID_1, 0);
 							
 							/* reset timer_count */
 							KWP_reset_TimeOut();                                    //ch
@@ -1516,8 +1350,7 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 
 						else if (l_RxLength == ADDRESS_BYTE_INV_POS) {
 
-							/* call Uart receive */
-							//uartMidRecv(UART_CH_ID_1,(uint8_t *) &l_ISO9141_14230LinkInitRet_S.Data[l_RxLength], 1);
+							/* call Uart receive uartMidRecv- moved to uart handler */
 							l_ISO9141_14230LinkInitRet_S.Data[l_RxLength] = (uint8_t) l_buffer_recev;
 							
 							/* Received the Address byte inverse - Increment the
@@ -1525,18 +1358,14 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 							l_RxLength++;
 
 							/* Update the length information to the Length Queue */
-							//ISO9141_14230_AddToQ(ISO9141_14230_LEN_Q,(const ISO9141_14230_Q_S*)&l_RxLength, 0); call funct 
 							
 							/* adding length in buffer */
-							buffer_type = ISO9141_14230_LEN_Q ;
 							kwp_buffer_length = l_RxLength;
 
 							/* Reset Rx Length */
 							l_RxLength = 0;
 
 							/* Disable Rx Timeout */
-							
-							//UART_Change_RxTimeOut(UART_CH_ID_1, 0);
 							
 							/* reset timer_count */
 							KWP_reset_TimeOut();                             //ch
@@ -1555,9 +1384,6 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 						if (l_RxLength == 0) {
 
 							/* Load the RxTimeout to determine end of frame */
-							//UART_Change_RxTimeOut(UART_CH_ID_1, l_P1MAX);
-							
-							//UART_Restart_RxTimeOut(UART_CH_ID_1);
 							
 							/*reset the (P3min +50000 )timer */
 							
@@ -1580,7 +1406,7 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 						}
 						
 						/* Call uart receive */
-					//	uartMidRecv(UART_CH_ID_1,(uint8_t *) &l_ISO9141_14230LinkInitRet_S.Data[fl_Cnt], 1);
+					        //uartMidRecv(UART_CH_ID_1,(uint8_t *) &l_ISO9141_14230LinkInitRet_S.Data[fl_Cnt], 1);
 					
 						l_ISO9141_14230LinkInitRet_S.Data[l_RxLength] = (uint8_t) l_buffer_recev;
 					
@@ -1607,16 +1433,12 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 						memset((void*)&ISO9141_14230_RxMsg_S_Buffer,0,sizeof(ISO9141_14230_RxMsg_S_Buffer));
 						
 						if(KWP_PROTOCOL_ID == 0x04 /*get_ISO9141_or_14230()*/) {
-	//						l_PktLength = ISO9141_14230_Get_Data_Length(uartRecvByte,&l_LengthByte);   needs to take data length function
+							l_PktLength = (uint8_t)l_buffer_recev;
 						}
 
 						/* Load the RxTimeout to determine end of frame */
-					//	KWP_Set_TimeOut(l_P1MAX,P1MAX_WAIT);  // changed P1max time format
+					        //KWP_Set_TimeOut(l_P1MAX,P1MAX_WAIT);  // changed P1max time format
 	
-	
-					//	UART_Change_RxTimeOut(UART_CH_ID_1, l_P1MAX);
-					//	UART_Restart_RxTimeOut(UART_CH_ID_1);
-						
 
 						/* FIRST_BYTE_RECVD indication ???? */
 						/* Call back function */
@@ -1626,11 +1448,11 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 						l_MsgReceived = FALSE;
 					}
 
-					/* doubt */
+
 					else if (l_RxLength == l_LengthByte) {
-						/*if (KWP_PROTOCOL_ID == get_ISO9141_or_14230()) {
-							l_PktLength = ISO9141_14230_Get_Data_Length(uartRecvByte,&l_LengthByte);
-						}*/
+						if (KWP_PROTOCOL_ID == 0x04 /*get_ISO9141_or_14230()*/) {
+							l_PktLength = (uint8_t)l_buffer_recev;
+						}
 					}
 
 					else {
@@ -1665,14 +1487,8 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 						
 						//fl_CurrTime = fl_CurrTime - (l_P1MAX);
 
-						/* Update Rx timestamp */
-						//ISO9141_14230_AddToQ(ISO9141_14230_TIME_Q,(const ISO9141_14230_Q_S *)&fl_CurrTime, 0);
-
-						/* Update the length information to the Length Queue */
-						//ISO9141_14230_AddToQ(ISO9141_14230_LEN_Q, (const ISO9141_14230_Q_S *)&l_RxLength, 0);
-						
+			
 						/* adding length in buffer */
-						buffer_type = ISO9141_14230_LEN_Q ;
 						kwp_buffer_length = l_RxLength;
 						
 						kwp_RxMsg_received = !FALSE ;
@@ -1686,8 +1502,7 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 						/* Indicate Message received */
 						l_MsgReceived = !FALSE;
 
-						/* Check P3min to load additional timeout starting from
-						   P1max */
+						/* Check P3min to load additional timeout starting from P1max */
 						/* If P3 min is less than P1max then next Tx could be
 						   started immediately else wait for P3min - P1max */
 						if (l_P3MIN < l_P1MAX) {
@@ -1696,7 +1511,7 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 							l_P3MINTimeout = !FALSE;
 
 							/* Disable Rx timeout */
-	                         // 			UART_Change_RxTimeOut(UART_CH_ID_1, 0);
+	                         
 	                         			/* reset timer_count */
 							KWP_reset_TimeOut();
 						}
@@ -1708,9 +1523,6 @@ gboolean KWP_uart_rx_callback(GIOChannel *source, GIOCondition condition, gpoint
 							   - So we were not maintaining the delay of 55 mses for response to request (P3_Min) timeout.
 							   - We shouldn't subtract the l_P1MAX timeout from l_P3MIN, (55-20) = 35 msecs delay, which is wrong. 
 							 */
-							
-				//			UART_Change_RxTimeOut(UART_CH_ID_1, l_P3MIN);	/* FIX FOR REVA, -l_P1MAX removed. */
-				//			UART_Restart_RxTimeOut(UART_CH_ID_1);
 							
 							/* reset timer_count */
 							KWP_reset_TimeOut();
@@ -1786,8 +1598,8 @@ int kwp_init(void)
 	return 0;
 	
 }
-static uint8_t ISO9141_14230_GetChecksum(const uint8_t * p_Data,
-					 uint16_t p_Length, uint8_t p_TxRx)
+
+static uint8_t ISO9141_14230_GetChecksum(const uint8_t * p_Data, uint16_t p_Length, uint8_t p_TxRx)
 {
 	uint8_t fl_Ret = 0;
 	uint16_t fl_Cnt = 0;
@@ -1903,19 +1715,8 @@ void ISO9141_14230_Init(const ISO9141_14230_Init_S * p_ISO9141_14230Init_S)
 	UART_InitStruct.rxQueueSz = 2700;
 	UART_InitStruct.txQueueSz = 2700;
 */
-	/* Init UART */
-//	UART_MidInit(UART_CH_ID_1, UART_InitStruct);
+	
 
-	/*arg1: specifying UART channel to be initialized
-	   arg2: struct containing initialization settings for UART */
-	/* Initialize Timeout to 0 */
-//	UART_Change_RxTimeOut(UART_CH_ID_1, 0);
-
-	/*purpose: to change the receive timeout for UART channnel
-	   arg1: UART channel for which the receive timeout is being modified
-	   arg2: receive timeout is being set to ) */
-	/* Initialize Time Guard to 0 */
-//	UART_Change_TimeGuard(UART_CH_ID_1, 0);
 
 	/* Interrupt handling */
 
@@ -1950,27 +1751,12 @@ void ISO9141_14230_Init(const ISO9141_14230_Init_S * p_ISO9141_14230Init_S)
 	T_gpio_PIN_config(&GPIO_KW_TX_5BAUD);
 
 
-	/*
-	 * Clear Buffers: Clearing the RX queue typically involves discarding
-	 * any pending or buffered received data in the queue, effectively
-	 * emptying it.
-	 * This operation can be useful in scenarios where you want to start
-	 * fresh or ensure that only the most recent data is processed.
-	 */
-	//uartClearRxQueue(UART_CH_ID_1,NORMAL_MODE);
-//	uartClearRxQueue(devicePath, NORMAL_MODE);
-
-	//uartClearTxQueue(const char *devicePath,NORMAL_MODE)
-//	uartClearTxQueue(devicePath, NORMAL_MODE);
-
-
 	/* Update the Init Link status */
 	l_InitStatus = NO_LINKINIT;
 
 }
 
-ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S
-					    * p_ISO9141_14230Cmd_SP)
+ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S * p_ISO9141_14230Cmd_SP)
 {
 	ISO9141_14230_RETCODE fl_RetCode = NO_ERROR;
 	uint8_t fl_ChkSum = CHECKSUM_OK;
@@ -2209,8 +1995,7 @@ ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S
 		}
 		
 
-		/* Call the init function to perform the initialization of the
-		   communication link */
+		/* Call the init function to perform the initialization of the  communication link */
 		ISO9141_14230_LinkInit();	//To initialize communication link parameters for 5 Baud / Fast Init in Linux, we can use the stty command in the terminal.
 		break;
 	
@@ -2223,14 +2008,7 @@ ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S
 		/* Clear all Tx Queues and Structures */
 		memset((void *)&ISO9141_14230_TxMsg_S_Buffer, 0, sizeof(ISO9141_14230_TxMsg_S));
 
-		/* Clear temporary Tx and Rx variable */
-//		uartClearRxQueue(devicePath, NORMAL_MODE);
-//		uartClearTxQueue(devicePath, NORMAL_MODE);
-
-		//enable_uart(UART_CH_ID_1);
-//              UART_MidEnable(UART_CH_ID_1);
-//		uartMidEnable(UART_CH_ID_1);
-
+		
 		/* Clear intermediate frame bytes if any */
 		l_UARTIntrTxIndex = 0;
 		l_MsgReceived = FALSE;
@@ -2247,9 +2025,7 @@ ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S
 		/* Clear Tx Index */
 		l_TxIndex = 0;
 
-		/* Reset the Front and Rear variables */
-//		l_TxQFront = 0;
-//		l_TxQRear = 0;
+
 		break;
 	case CLEAR_RX_BUFFER:	/* Clear Rx Buffers */
 		/* Set Length to 0 */
@@ -2257,20 +2033,6 @@ ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S
 
 		/* Clear Reception Queue */
 		memset((void *)&ISO9141_14230_RxMsg_S_Buffer, 0, sizeof(ISO9141_14230_RxMsg_S));
-
-		/* Clear RxLength Queue */
-//		memset((void *)&l_ISO9141_14230_RxLenQ, 0,		       (sizeof(uint8_t) * ISO9141_14230_MAXRXLENQSIZE));
-
-		/* Clear RxTime Queue */
-//		memset((void *)&l_ISO9141_14230_RxTimeQ, 0,		       (sizeof(uint8_t) * ISO9141_14230_MAXRXTIMEQSIZE));
-
-		/* Clear temporary Tx and Rx variable */
-//		uartClearRxQueue(devicePath, NORMAL_MODE);
-//		uartClearTxQueue(devicePath, NORMAL_MODE);
-
-		//enable_uart(UART_CH_ID_1);
-//            UART_MidEnable(UART_CH_ID_1);
-//		uartMidEnable(UART_CH_ID_1);
 
 		/* Clear intermediate frame bytes if any */
 		l_UARTIntrTxIndex = 0;
@@ -2283,15 +2045,7 @@ ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S
 
 		/* Clear Tx length */
 		l_TxLength = 0;
-#if 0
-		/* Reset the Front and Rear variables */
-		l_RxQFront = 0;
-		l_RxQRear = 0;
-		l_RxLenQFront = 0;
-		l_RxLenQRear = 0;
-		l_RxTimeQFront = 0;
-		l_RxTimeQRear = 0;
-#endif
+
 		break;
 	
 	default:
@@ -2331,41 +2085,6 @@ static void ISO9141_14230_LinkInit(void)
 //        Set_Pin_High(KLINE_LLINE_SLCT);
 	}
 
-	/* Disable UART till init pattern is generated */
-	/* Clear temporary Tx and Rx variable */
-//	uartClearTxQueue(devicePath, NORMAL_MODE);
-//	uartClearRxQueue(devicePath, NORMAL_MODE);
-
-	//disable_uart(UART_CH_ID_1);
-	// UART_MidDisable(UART_CH_ID_1);
-//	uartMidDisable(UART_CH_ID_1);
-
-	//UART_ITConfig (UART_CH_ID_1,IER_THRE,DISABLE);
-	//UART_ITConfig (UART_CH_ID_1,IER_RBR,DISABLE);
-
-	/* Reset all Buffers */
-
-	/* Reset UART buffer */
-//	uartClearTxQueue(devicePath, NORMAL_MODE);
-//	uartClearRxQueue(devicePath, NORMAL_MODE);
-
-	#if 0
-	/* Initialize Transmission Queue */
-	memset((void *)&l_ISO9141_14230_TxQ, 0, (sizeof(uint8_t) * ISO9141_14230_MAXTXQSIZE));
-
-	/* Initialize Reception Queue */
-	memset((void *)&l_ISO9141_14230_RxQ, 0,
-	       (sizeof(uint8_t) * ISO9141_14230_MAXRXQSIZE));
-
-	/* Initialize Rx Length Queue */
-	memset((void *)&l_ISO9141_14230_RxLenQ, 0,
-	       (sizeof(uint8_t) * ISO9141_14230_MAXRXLENQSIZE));
-
-	/* Initialize Rx Time Queue */
-	memset((void *)&l_ISO9141_14230_RxTimeQ, 0,
-	       (sizeof(uint8_t) * ISO9141_14230_MAXRXTIMEQSIZE));
-	#endif
-	
 	
 	/* Clear the RxLength */
 	l_RxLength = 0;
@@ -2378,36 +2097,17 @@ static void ISO9141_14230_LinkInit(void)
 	l_TxIndex = 0;
 	l_UARTIntrTxIndex = 0;
 
-#if 0
-	/* Reset Queue variables */
 
-	/* Rx Queue */
-	l_RxQFront = 0;
-	l_RxQRear = 0;
-
-	/* Tx Queue */
-	l_TxQFront = 0;
-	l_TxQRear = 0;
-
-	/* RxLength Queue */
-	l_RxLenQFront = 0;
-	l_RxLenQRear = 0;
-
-	/* RxLength Queue */
-	l_RxTimeQFront = 0;
-	l_RxTimeQRear = 0;
-#endif
 
 	/* Configure UART Tx as GPIO to generate the init pattern */
-//    Config_Pin_Output(KW_TXD);
-	//  Set_Pin_High(KW_TXD);
+    	/* Config_Pin_Output(KW_TXD); */
+	/*  Set_Pin_High(KW_TXD); */
 
-	/* Disable RX Time OUT - if some Timeout caused in Idle Detection,
-	   The Init will Fail */
-//	UART_Change_RxTimeOut(UART_CH_ID_1, 0);
+	/* Disable RX Time OUT - if some Timeout caused in Idle Detection, The Init will Fail */
+        /* UART_Change_RxTimeOut(UART_CH_ID_1, 0); */
 
 	/* Update the reference Idle time - ?? Timer should have started ?? */
-//	ISO9141_14230_EnableBusMonitor();
+	/* ISO9141_14230_EnableBusMonitor(); */
 
 
 	/* ISO9141_14230_RxMsg_S_Buffer initialize */
@@ -2461,10 +2161,7 @@ ISO9141_14230_RETCODE ISO9141_14230_WriteMsg(void)
 	if (CHECK_BITU8(l_ConnectFlags, BIT_CHKSUM) == FALSE) {
 
 		/* Obtain the checksum for Tx data */
-		fl_ChkSum =
-		    ISO9141_14230_GetChecksum(ISO9141_14230_TxMsg_S_Buffer.Data,
-					      ISO9141_14230_TxMsg_S_Buffer.Length,
-					      CHKSUM_TXDATA);
+		fl_ChkSum = ISO9141_14230_GetChecksum(ISO9141_14230_TxMsg_S_Buffer.Data, ISO9141_14230_TxMsg_S_Buffer.Length, CHKSUM_TXDATA);
 
 		/* Store the checksum as the last byte */
 		ISO9141_14230_TxMsg_S_Buffer.Data[ISO9141_14230_TxMsg_S_Buffer.Length] = fl_ChkSum;
@@ -2474,7 +2171,6 @@ ISO9141_14230_RETCODE ISO9141_14230_WriteMsg(void)
 	}
 
 	/* Add the message to be transmitted to the Queue */
-	//fl_TxQStatus = ISO9141_14230_AddToQ(ISO9141_14230_TX_Q, (const ISO9141_14230_Q_S *)p_ISO9141_14230TxMsg_SP, 0);
 	
 	kwp_TxMsg_received = !FALSE;
 	
@@ -2509,20 +2205,12 @@ ISO9141_14230_RETCODE ISO9141_14230_WriteMsg(void)
 
 void ISO9141_14230_TxTask(void)
 {
-	//Mid_API_Status_t fl_UARTStatus = MID_PASS;
-	//ISO9141_14230_TxMsg_S fl_ISO9141_14230Tx_S;
-	//ISO9141_14230_QSTATUS fl_TxQStatus;
-	//ISO9141_14230_QSTATUS fl_RxQStatus;
 
-	/* Check if transmission completed during non-init mdoe to remove the Tx
-	   frame from Queue */
+	/* Check if transmission completed during non-init mdoe to remove the Tx frame from Queue */
 	if ((l_InitStatus != LINKINIT_PENDING) && (l_TxComp != FALSE)) {
 
-		/* If all the bytes are transmitted then remove the frame from
-		   Queue */
-		/*ISO9141_14230_DelFromQ(ISO9141_14230_TX_Q,
-				       (ISO9141_14230_Q_S *) &
-				       fl_ISO9141_14230Tx_S);*/
+		/* If all the bytes are transmitted then remove the frame from Queue */
+		/*ISO9141_14230_DelFromQ(ISO9141_14230_TX_Q, (ISO9141_14230_Q_S *) &fl_ISO9141_14230Tx_S);*/
 		if (l_loopback) {
 		
 			ISO9141_14230_TxMsg_S_Buffer.Flags = 0x00000001;
@@ -2530,17 +2218,10 @@ void ISO9141_14230_TxTask(void)
 			memset((void*)&ISO9141_14230_RxMsg_S_Buffer,0,sizeof(ISO9141_14230_RxMsg_S)) ;
 			memcpy(&ISO9141_14230_TxMsg_S_Buffer,&ISO9141_14230_RxMsg_S_Buffer,sizeof(ISO9141_14230_RxMsg_S));
 			
-			//get_data_logging_time_stamp(&fl_ISO9141_14230Tx_S.Timestamp);
-//          get_time_stamp(&fl_ISO9141_14230Tx_S.Timestamp);
-			/* Store the message onto the Rx queue */
-			/*fl_RxQStatus =
-			    ISO9141_14230_AddToQ(ISO9141_14230_RX_Q,
-						 (const ISO9141_14230_Q_S *)
-						 &fl_ISO9141_14230Tx_S, 0);*/ //need to do the modification
-			
-			// check TXmsg struct buffer cleared 
-			// add Rxstruct buffer to Txmsg struct
-			// clear Txmsg struct
+		
+			/* check TXmsg struct buffer cleared */
+			/* add Rxstruct buffer to Txmsg struct */
+			/* clear Txmsg struct */
 
 			/* Report error if RxQ full */
 			/*if (ISO9141_14230_Q_FULL == fl_RxQStatus) {
@@ -2562,50 +2243,26 @@ void ISO9141_14230_TxTask(void)
 			kwp_TxMsg_received = FALSE;
 	}
 
-	/* Read a frame from Queue if
-
-	   (the initialization is not in the pending state AND
-
-	   (the minimum time between ECU response and
-	   tester request has elapsed AND the previous frame is loaded to UART
-	   for transmission
-
-	   OR
-
-	   the Tx frame length is nonzero AND Index has not reached the Tx frame
-	   length) ) */
+	/* Read a frame from Queue if(the initialization is not in the pending state AND(the minimum time between ECU response and 
+	tester request has elapsed AND the previous frame is loaded to UART for transmission OR the Tx frame length is nonzero AND
+	Index has not reached the Tx frame length) ) */
 	if (((l_InitStatus != LINKINIT_PENDING) && (((l_P3MINTimeout != FALSE) && (l_TxLength == 0)) || ((l_TxLength != 0) && (l_TxIndex < l_TxLength)))) && (l_RxLength == 0))
 
 	{
 		if(kwp_TxMsg_received == !FALSE)
 		{
 
-			/* Initialize Index for Tx bytes when a new frame is to be
-			   transmitted */
+			/* Initialize Index for Tx bytes when a new frame is to be transmitted */
 			if ((l_TxLength == 0) && (l_TxIndex != 0)) {
 
 				/* New frame - Restart Index */
 				l_TxIndex = 0;
 			}
 			
-			/* Obtain the new message to be transmitted from the queue */
-			/*fl_TxQStatus =
-			    ISO9141_14230_ReadFromQ(ISO9141_14230_TX_Q,
-						    (ISO9141_14230_Q_S *) &
-						    fl_ISO9141_14230Tx_S);*/ // need to modify the code
-
-			/* Check if the queue is empty */
-			//if (ISO9141_14230_Q_EMPTY == fl_TxQStatus) {
-
-				/* Exit the task - No data to transmit */
-			//}
-
 
 			/* Load the Tx bytes onto UART */
-			//	else {
-
-				/* Save the Tx frame length and Load Tx Interbyte time for the new
-				   frame */
+			
+			/* Save the Tx frame length and Load Tx Interbyte time for the new frame */
 			if (l_TxIndex == 0) {
 
 					/* Save Tx Length */
@@ -2647,9 +2304,6 @@ void ISO9141_14230_TxTask(void)
 					
 			}
 
-				
-
-			//	}
 		}
 		else{
 			/* Do nothing */
@@ -2717,7 +2371,9 @@ void ISO9141_14230_RxTask(void)
 				/* If checksum not Ok, reported checksum error*/
 				else
 				{
-					//call error handler
+					/* call error handler,reported checksum error */
+					App_ErrHandler(l_ProtocolId, ECU_RESPCHKSUM_ERROR); 
+					
 					if(l_ProtocolId == KWP_PROTOCOL_ID)
 					{
 					   	/* Save the total length */
@@ -2800,28 +2456,34 @@ void ISO9141_14230_RxTask(void)
 }
 
 /* First Byte received */
-void App_FirstByteRxd(uint8_t l_ProtocolId, uint32_t p_timestamp)
+void App_FirstByteRxd(uint32_t l_ProtocolId, uint32_t p_timestamp)
 {
         uint8_t usb_tx[512] = {0};
 
-        usb_tx[0] = l_ProtocolId;
-        usb_tx[1] = 0x0A;
-        usb_tx[2] = 0;
-        usb_tx[3] = 0;
-        usb_tx[4] = 0;
+        //usb_tx[0] = l_ProtocolId;
+        usb_tx[0] = (l_ProtocolId >> 0) & 0xFF;
+    	usb_tx[1] = (l_ProtocolId >> 8) & 0xFF;
+    	usb_tx[2] = (l_ProtocolId >> 16) & 0xFF;
+    	usb_tx[3] = (l_ProtocolId >> 24) & 0xFF;
+    
+        
+        usb_tx[4] = 0x0A;
         usb_tx[5] = 0;
-        usb_tx[6] = 2;
+        usb_tx[6] = 0;
         usb_tx[7] = 0;
         usb_tx[8] = 0;
-        usb_tx[9] = 0;
-        usb_tx[10] = (uint8_t)(p_timestamp & 0xFF);
-        usb_tx[11] = (uint8_t)((p_timestamp >> 8) & 0xFF);
-        usb_tx[12] = (uint8_t)((p_timestamp >> 16) & 0xFF);
-        usb_tx[13] = (uint8_t)((p_timestamp >> 24) & 0xFF);
-        usb_tx[14] = 0;
+        usb_tx[9] = 2;
+        usb_tx[10] = 0;
+        usb_tx[11] = 0;
+        usb_tx[12] = 0;
+        usb_tx[13] = (uint8_t)(p_timestamp & 0xFF);
+        usb_tx[14] = (uint8_t)((p_timestamp >> 8) & 0xFF);
+        usb_tx[15] = (uint8_t)((p_timestamp >> 16) & 0xFF);
+        usb_tx[16] = (uint8_t)((p_timestamp >> 24) & 0xFF);
+        usb_tx[17] = 0;
         
-//        (void)host_write((void *)usb_tx, 14);
-//        (void)Garuda_Tx_data_on_USB(&usb_tx[0],64,DONT_RELEASE_ISR/*DONT_RELEASE*/);//made changes in HFCP.c
+        (void)host_write((void *)usb_tx, 18);
+        
 }
 
 void PassThruReadMsgResp_KWP (void)
@@ -2833,34 +2495,38 @@ void PassThruReadMsgResp_KWP (void)
     uint16_t fl_IdxLen;
     uint32_t current_time_stamp = 0;
 
-    if((0 == l_KWPRX_SegTrnsfr)&&(0 == fl_KWPRX_SegNo))
+    if(0 == fl_KWPRX_SegNo)
     {
         /* Call the Read Message function */
-  //      fl_ISO9141_14230RetStatus = ISO9141_14230_ReadMsg(&l_App_ISO9141_14230RxMsg_S);
+        /*fl_ISO9141_14230RetStatus = ISO9141_14230_ReadMsg(&l_App_ISO9141_14230RxMsg_S);*/
 
         /* Update the Error Code based on the return */
         if(kwp_RxMsg_buffer_updated != FALSE)
         {
             /* Determine the Response */
-//            fl_USB_tx_data_U8A[0] = get_ISO9141_or_14230();//HFCP.c
-            fl_USB_tx_data_U8A[1] = KWP_Receive_msg;
-            fl_USB_tx_data_U8A[2] = fl_KWPRX_SegNo;
-            fl_USB_tx_data_U8A[3] = STATUS_NOERROR;
+            //fl_USB_tx_data_U8A[0] = get_ISO9141_or_14230();//HFCP.c
+            fl_USB_tx_data_U8A[0]= (l_ProtocolId >> 0) & 0xFF;
+            fl_USB_tx_data_U8A[1]= (l_ProtocolId >> 8) & 0xFF;
+            fl_USB_tx_data_U8A[2]= (l_ProtocolId >> 16) & 0xFF;
+            fl_USB_tx_data_U8A[3]= (l_ProtocolId >> 24) & 0xFF;
+            fl_USB_tx_data_U8A[4] = KWP_Receive_msg;
+            fl_USB_tx_data_U8A[5] = fl_KWPRX_SegNo;
+            fl_USB_tx_data_U8A[6] = STATUS_NOERROR;
 
             /* Store the read message */
-            fl_USB_tx_data_U8A[4] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Length )      & 0xFF);
-            fl_USB_tx_data_U8A[5] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Length >> 8)  & 0xFF);
+            fl_USB_tx_data_U8A[7] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Length )      & 0xFF);
+            fl_USB_tx_data_U8A[8] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Length >> 8)  & 0xFF);
 
-            fl_USB_tx_data_U8A[6] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Flags )      & 0xFF);
-            fl_USB_tx_data_U8A[7] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Flags >> 8)  & 0xFF);
-            fl_USB_tx_data_U8A[8] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Flags >> 16) & 0xFF);
-            fl_USB_tx_data_U8A[9] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Flags >> 24) & 0xFF);
+            fl_USB_tx_data_U8A[9] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Flags )      & 0xFF);
+            fl_USB_tx_data_U8A[10] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Flags >> 8)  & 0xFF);
+            fl_USB_tx_data_U8A[11] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Flags >> 16) & 0xFF);
+            fl_USB_tx_data_U8A[12] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Flags >> 24) & 0xFF);
 
             current_time_stamp = ISO9141_14230_RxMsg_S_Buffer.Timestamp;
-            fl_USB_tx_data_U8A[10] = (uint8_t)((current_time_stamp )      & 0xFF);
-            fl_USB_tx_data_U8A[11] = (uint8_t)((current_time_stamp >> 8)  & 0xFF);
-            fl_USB_tx_data_U8A[12] = (uint8_t)((current_time_stamp >> 16) & 0xFF);
-            fl_USB_tx_data_U8A[13] = (uint8_t)((current_time_stamp >> 24) & 0xFF);
+            fl_USB_tx_data_U8A[13] = (uint8_t)((current_time_stamp )      & 0xFF);
+            fl_USB_tx_data_U8A[14] = (uint8_t)((current_time_stamp >> 8)  & 0xFF);
+            fl_USB_tx_data_U8A[15] = (uint8_t)((current_time_stamp >> 16) & 0xFF);
+            fl_USB_tx_data_U8A[16] = (uint8_t)((current_time_stamp >> 24) & 0xFF);
             /* Make the Local Length as 0 As it first frame*/
             fl_KWPRX_LocalLen = 0;
             /* 50 bytes of Space in this USB Frame */
@@ -2868,7 +2534,7 @@ void PassThruReadMsgResp_KWP (void)
             /* size needs to check */
             for(fl_IdxLen = 0;fl_IdxLen < ISO9141_14230_RxMsg_S_Buffer.Length;fl_IdxLen++)
             {
-                fl_USB_tx_data_U8A[14+fl_IdxLen]  =  ISO9141_14230_RxMsg_S_Buffer.Data[fl_IdxLen];
+                fl_USB_tx_data_U8A[17+fl_IdxLen]  =  ISO9141_14230_RxMsg_S_Buffer.Data[fl_IdxLen];
                 fl_KWPRX_LocalLen++;
             }
             #if 0
@@ -2890,44 +2556,12 @@ void PassThruReadMsgResp_KWP (void)
 		/* Reset RxMsg struct */
 		memset((void*)&ISO9141_14230_RxMsg_S_Buffer,0,sizeof(ISO9141_14230_RxMsg_S_Buffer)) ;
            // }
+           
             (void)host_write((void *)fl_USB_tx_data_U8A, 512);
-//          (void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],64,DONT_RELEASE_ISR/*DONT_RELEASE*/);//made changes in HFCP.c
+       
         }
     }
-    #if 0
-    /* If Segmented Transfer Send Next Segments */
-    else if ((1 == l_KWPRX_SegTrnsfr) && (0 != fl_KWPRX_SegNo))
-    {
-        /* Next Segment */
-        fl_KWPRX_SegNo++;
-        /* Determine the Response */
-//        fl_USB_tx_data_U8A[0] = get_ISO9141_or_14230();//HFCP.c
-        fl_USB_tx_data_U8A[1] = KWP_Receive_msg;
-        fl_USB_tx_data_U8A[2] = fl_KWPRX_SegNo;
-        /* 61 bytes of Space in this USB Frame */
-        for(fl_IdxLen = 0;fl_IdxLen < 61; fl_IdxLen++)
-        {
-            fl_USB_tx_data_U8A[3+fl_IdxLen]  =  ISO9141_14230_RxMsg_S_Buffer.Data[fl_KWPRX_LocalLen];s
-            fl_KWPRX_LocalLen++;
-            /* If All Data Copied then Stop Coping and MArk End of Segmented Transfer */
-            if(fl_KWPRX_LocalLen >= ISO9141_14230_RxMsg_S_Buffer.Length)
-            {
-                fl_KWPRX_SegNo = 0;
-                l_KWPRX_SegTrnsfr = 0;
-                
-                /* Reset RxMsg buffer variable */
-                kwp_RxMsg_received = FALSE;
-		kwp_RxMsg_buffer_updated = FALSE;
-		
-		/* Reset RxMsg struct */
-		memset((void*)&ISO9141_14230_RxMsg_S_Buffer,0,sizeof(ISO9141_14230_RxMsg_S_Buffer)) ;
-                break;
-            }
-        }
-          (void)host_write((void *)fl_USB_tx_data_U8A, 512);
- //       (void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],64,DONT_RELEASE_ISR/*DONT_RELEASE*/);//made changes in HFCP.c
-    }
-    #endif
+ 
     else
     {
         /* Do Nothing */
@@ -2949,12 +2583,6 @@ void ISO9141_14230_Reset(void)
 	/* Initialize Init Return data structure */
 	memset((void *)&l_ISO9141_14230LinkInitRet_S, 0, sizeof(ISO9141_14230_LinkInitRet_S));
 
-	/* Stop Timer for Timestamp for ISO 9141 / 14230 */
-//    stop_time_stamp(timestamp_id[GARUDA_KWP_CH1]);
-
-	/* Stop Timer for Timestamp for
-	   ISO 9141/14230 */
-//    stop_time_stamp(l_InitTimer);
 
 	timer_init_flag = FALSE;
 	fastinit_start_comm_req_start_flag = FALSE;
@@ -3001,4 +2629,101 @@ void ISO9141_14230_Reset(void)
 //    Set_Pin_Low(LLINE_ISO_SLCT);
 	//   Set_Pin_Low(KLINE_ISO_SLCT);
 }
+
+void App_InitData(ISO9141_14230_LinkInitRet_S *p_InitData_SP)
+{
+
+    uint16_t loop_count;
+    uint8_t usb_tx[512] = {0};
+    
+    uint32_t fl_ProtocolId = p_InitData_SP->ProtocolId;
+
+    /* Prepare the USB transmit frame */
+   
+  
+    /*memcpy(&usb_tx[0], &protocol_id, sizeof(int));*/
+    
+    usb_tx[0] = (fl_ProtocolId >> 0) & 0xFF;
+    usb_tx[1] = (fl_ProtocolId >> 8) & 0xFF;
+    usb_tx[2] = (fl_ProtocolId >> 16) & 0xFF;
+    usb_tx[3] = (fl_ProtocolId >> 24) & 0xFF;
+    
+    usb_tx[4] = IOCTL_COMMAND;
+    usb_tx[5] = p_InitData_SP->IOCtlId;
+    usb_tx[6] = STATUS_NOERROR;
+    usb_tx[7] = (p_InitData_SP->Length) & 0xFF;
+    usb_tx[8] = (p_InitData_SP->Length >> 8) & 0xFF;
+    for(loop_count=0; loop_count < p_InitData_SP->Length; loop_count++)
+    {
+        usb_tx[9+loop_count] = p_InitData_SP->Data[loop_count];
+    }
+   // (void)Garuda_Tx_data_on_USB(&usb_tx[0],64,DONT_RELEASE_ISR/*DONT_RELEASE*/);//made changes in HFCP.c
+   (void)host_write((void *)usb_tx, 512);
+}
+
+/* Error Handler */
+//uint8_t apperrhandler;
+
+void App_ErrHandler(uint32_t protocol_id, uint8_t error_code)
+{
+
+  uint8_t usb_tx[512] = {0};
+
+    /* Prepare the USB transmit frame */
+    //usb_tx[0] = protocol_id;
+    
+    /*memcpy(&usb_tx[0], &protocol_id, sizeof(int));*/
+    usb_tx[0] = (protocol_id >> 0) & 0xFF;
+    usb_tx[1] = (protocol_id >> 8) & 0xFF;
+    usb_tx[2] = (protocol_id >> 16) & 0xFF;
+    usb_tx[3] = (protocol_id >> 24) & 0xFF;
+
+    //apperrhandler = error_code;
+    
+     /* Report Init error */
+    switch(error_code) {
+    	case PATTERN_BYTE_TIMEOUT:
+    	case KEY_BYTE1_TIMEOUT:
+    	case KEY_BYTE2_TIMEOUT:
+    	case ADDRESS_BYTE_TIMEOUT:
+    		usb_tx[4] = IOCTL_COMMAND;
+      		usb_tx[5] = FIVE_BAUD_INIT;
+       		usb_tx[6] = ERR_FAILED; 
+       		(void)host_write((void *)usb_tx, 7);
+       		break;
+       	case FASTINIT_RESP_TIMEOUT:
+       	case FASTINIT_RESPCHKSUM_ERROR:
+       		usb_tx[4] = IOCTL_COMMAND;
+      		usb_tx[5] = FAST_INIT;
+       		usb_tx[6] = ERR_FAILED; 
+       		(void)host_write((void *)usb_tx, 7);
+       		break;
+       	case MSG_CORRUPTED:
+       		usb_tx[4] = SND_MSG_CORRUPTED;
+      		usb_tx[5] = MSG_CORRUPTED;
+       		usb_tx[6] = ERR_FAILED; 
+       		(void)host_write((void *)usb_tx, 7);
+       		break;
+       	case ECU_RESP_TIMEOUT:
+       		usb_tx[4] = SND_ECU_RESP;
+      		usb_tx[5] = ECU_RESP_TIMEOUT;
+       		usb_tx[6] = ERR_FAILED; 
+       		(void)host_write((void *)usb_tx, 7);
+       		break;
+       	case ECU_RESPCHKSUM_ERROR:
+       		usb_tx[4] = SND_ECU_RESPCHKSUM;
+      		usb_tx[5] = ECU_RESPCHKSUM_ERROR;
+       		usb_tx[6] = ERR_FAILED; 
+       		(void)host_write((void *)usb_tx, 7);
+       		break;	
+       	default:
+       		break;
+  		
+    }
+   
+}
+
+
+
+
 

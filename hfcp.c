@@ -11,8 +11,7 @@
 #include	"j2534_filter.h"
 #include	"j2534_periodic.h"
 #include	"data_logger.h"
-//#include        "iso14230.h"
-// removed iso14230.h 
+
 #include	"hfcp.h"
 #include	"g3d.h"
 #include	"net_if.h"
@@ -109,7 +108,7 @@ static void process_CAN_IOCTL_cmd(uint8_t *);
 static void process_CAN_FD_IOCTL_cmd(uint8_t *);
 
 static buffer_v buffer_t;
-static void process_KWP_IOCTL_cmd(uint8_t *buffer);  //kwp_ch uncommented
+static void process_KWP_IOCTL_cmd(uint8_t *buffer);  
 
 //ISO9141_14230_TxMsg_S ISO9141_14230_TxMsg_S_Buffer;/* it is extern variable .declaration in kwp_if.h,definition in kwp_if.c, so can use directly with including kwp_if.h */
 
@@ -3109,9 +3108,8 @@ void process_CAN_FD_IOCTL_cmd(uint8_t * buff)
 
 void process_KWP_command(uint8_t * buffer)
 {
-	hfcpReq_t * KWP_buffer = (hfcpReq_t*)buffer;	//add
-	uint8_t fl_status_U8, fl_USB_tx_data_U8A[512], command = 0;
-//	uint32_t fl_baudrate_U32 = 0; //ch
+	hfcpReq_t * KWP_buffer = (hfcpReq_t*)buffer;	
+	uint8_t fl_status_U8, fl_USB_tx_data_U8A[BUFFER_SIZE], command = 0;
 	PERIODIC_MSG j2534_periodic_msg;
 	uint8_t periodic_msg_cmd = 0;
 	J2534_filter_t 	fl_filter_config;			;
@@ -3132,7 +3130,7 @@ void process_KWP_command(uint8_t * buffer)
 	switch (command) {
 	case KWP_EnableComm:
 		{
-			memset(&fl_USB_tx_data_U8A, 0, 512);
+			memset(&fl_USB_tx_data_U8A, 0, BUFFER_SIZE);
 			fl_USB_tx_data_U8A[0] = buffer[0];
 			fl_USB_tx_data_U8A[1] = buffer[1];
 			fl_USB_tx_data_U8A[2] = buffer[2];
@@ -3140,29 +3138,9 @@ void process_KWP_command(uint8_t * buffer)
 
 			fl_USB_tx_data_U8A[4] = KWP_EnableComm_ACK;
 
-		/*	fl_baudrate_U32 = (uint32_t) buffer[5];
-			fl_baudrate_U32 <<= 8;
-			fl_baudrate_U32 |= (uint32_t) buffer[4];
-			fl_baudrate_U32 <<= 8;
-			fl_baudrate_U32 |= (uint32_t) buffer[3];
-			fl_baudrate_U32 <<= 8;
-			fl_baudrate_U32 |= (uint32_t) buffer[2];
-		*/
 			if ((KWP_buffer->proto_id == KWP_PROTOCOL_ID)  || (KWP_buffer->proto_id == ISO_9141_PROTO_ID)) {
 
 				ISO_9141_OR_14230 = KWP_buffer->proto_id; // changed to uint32_t
-
-				/**< Added to check the Active Protocol */
-		/*
-
-				KWP_connect_flags = (uint32_t) buffer[9];
-				KWP_connect_flags <<= 8;
-				KWP_connect_flags |= (uint32_t) buffer[8];
-				KWP_connect_flags <<= 8;
-				KWP_connect_flags |= (uint32_t) buffer[7];
-				KWP_connect_flags <<= 8;
-				KWP_connect_flags |= (uint32_t) buffer[6];
-		*/
 
 				/* Determine the Initialization structure */
 				fl_App_ISO9141_14230Init_S.ProtocolId =  KWP_buffer->proto_id ;
@@ -3196,7 +3174,7 @@ void process_KWP_command(uint8_t * buffer)
 
 	case KWP_DisableComm:
 		{
-			memset(&fl_USB_tx_data_U8A, 0, APP_BUFFER_SIZE);
+			memset(&fl_USB_tx_data_U8A, 0, BUFFER_SIZE);
 			fl_USB_tx_data_U8A[0] = buffer[0];
 			fl_USB_tx_data_U8A[1] = buffer[1];
 			fl_USB_tx_data_U8A[2] = buffer[2];
@@ -3274,11 +3252,8 @@ void process_KWP_command(uint8_t * buffer)
 						fl_ISO9141_14230RetStatus = ISO9141_14230_WriteMsg();
 
 						/* Determine the Response */
-						memset(&fl_USB_tx_data_U8A, 0, 512);
+						memset(&fl_USB_tx_data_U8A, 0, BUFFER_SIZE);
 						
-						/*fl_USB_tx_data_U8A[0] = buffer[0];
-						fl_USB_tx_data_U8A[1] = KWP_Send_msg_ACK;
-						fl_USB_tx_data_U8A[2] = buffer[2];*/
 						    
 						 fl_USB_tx_data_U8A[0] = buffer[0];
 						 fl_USB_tx_data_U8A[1] = buffer[1];
@@ -3432,11 +3407,7 @@ void process_KWP_command(uint8_t * buffer)
 				}
 			} else {
 				/* ERROR: It should never enter here */
-				/*fl_USB_tx_data_U8A[0] = buffer[0];
-				fl_USB_tx_data_U8A[1] = KWP_Send_msg_ACK;
-				fl_USB_tx_data_U8A[2] = buffer[2];
-				fl_USB_tx_data_U	8A[3] = ERR_INVALID_PROTOCOL_ID;*/
-				
+	
 				fl_USB_tx_data_U8A[0] = buffer[0];
 				fl_USB_tx_data_U8A[1] = buffer[1];
 				fl_USB_tx_data_U8A[2] = buffer[2];
@@ -3444,7 +3415,6 @@ void process_KWP_command(uint8_t * buffer)
 				fl_USB_tx_data_U8A[4] = KWP_Send_msg_ACK;
 				fl_USB_tx_data_U8A[5] = KWP_buffer->u.kwp_sndmsg.seg_num;
 				fl_USB_tx_data_U8A[6] = ERR_INVALID_PROTOCOL_ID;
-				
 				
 				//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],4,DONT_RELEASE);
 				(void)host_write((void *)fl_USB_tx_data_U8A, 7);
@@ -3599,7 +3569,7 @@ static void process_KWP_IOCTL_cmd(uint8_t * buffer)
 {
 	hfcpReq_t *KWP_buffer = (hfcpReq_t*)buffer;  //ch
 	uint32_t fl_KWP_par_val_U32;
-	uint8_t fl_USB_tx_data_U8A[512];
+	uint8_t fl_USB_tx_data_U8A[BUFFER_SIZE];
 	J2534_stError_t fl_filt_stopAll_status;
 	ISO9141_14230_Cmd_S fl_App_ISO9141_14230Cmd_S;
 	ISO9141_14230_RETCODE fl_ISO9141_14230RetStatus = NO_ERROR;
@@ -3612,7 +3582,7 @@ static void process_KWP_IOCTL_cmd(uint8_t * buffer)
 	} else {
 		//fl_channel_no_U8 = 2;
 	}
-	memset(&fl_USB_tx_data_U8A, 0, 512);
+	memset(&fl_USB_tx_data_U8A, 0, BUFFER_SIZE);
 
 	fl_USB_tx_data_U8A[0] = buffer[0];   //ch
 	fl_USB_tx_data_U8A[1] = buffer[1];
