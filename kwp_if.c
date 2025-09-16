@@ -4,7 +4,8 @@
 #include	<unistd.h>
 #include	<glib.h>
 #include	"kwp_if.h"
-#include        "hfcp.h"
+
+
 
 
 #define FALSE 0
@@ -61,6 +62,8 @@ static uint16_t l_LengthByte;	/* Length byte index */
 static uint16_t l_PktLength;	/* Defines the packet length of Handling data wrt length */
 static uint32_t l_P1MAX_ExtendedTimeout;	/* Extended P1Max to find the maximum timeout for P1_Max */
 
+/* Kwp_int */
+static int fd ;
 
 /* Queue variables */
 
@@ -90,7 +93,6 @@ static bool fastinit_start_comm_req_end_flag = FALSE;
 static bool l_p4min_timeout = false;
 
 
-
 static ISO9141_14230_QTYPE buffer_type;
 static uint16_t kwp_buffer_length;
 
@@ -107,6 +109,10 @@ ISO9141_14230_TxMsg_S ISO9141_14230_TxMsg_S_Buffer;
 /* PassThruReadMsgResp_KWP variable */
 static uint8_t l_KWPRX_SegTrnsfr=0;
 
+/* Function declarations */
+static void ISO9141_14230_LinkInit(void);
+static uint8_t ISO9141_14230_GetChecksum(const uint8_t * , uint16_t , uint8_t);
+static bool ISO9141_14230_GetParity(void);
 
 
 
@@ -1572,8 +1578,8 @@ void uart_send_data(UARTContext *ctx, char data)
 int kwp_init(void)
 {
 
-	const char *uart_dev = "/dev/ttyS4"; 
-	int fd = open(uart_dev, O_RDWR | O_NOCTTY | O_NONBLOCK);
+	const char *uart_dev = "/dev/ttyS2"; 
+	fd = open(uart_dev, O_RDWR | O_NOCTTY | O_NONBLOCK);
 	if (fd < 0) {
         	perror("UART open failed");
         	return 1;
@@ -1643,6 +1649,10 @@ void ISO9141_14230_Init(const ISO9141_14230_Init_S * p_ISO9141_14230Init_S)
 
 	/* Queue variables */
 
+	/* IOCTL_Return status variables */
+	int Ioctl_Baud_Ret_status = 0;
+	int Ioctl_Parity_Ret_status = 0;
+	
 	
 	/* Save all the default values to ISO 9141 / 14230 parameters */
 	l_ProtocolId = p_ISO9141_14230Init_S->ProtocolId;
@@ -1715,8 +1725,8 @@ void ISO9141_14230_Init(const ISO9141_14230_Init_S * p_ISO9141_14230Init_S)
 	UART_InitStruct.rxQueueSz = 2700;
 	UART_InitStruct.txQueueSz = 2700;
 */
-	Set_Baudrate(l_BaudRate);
-	Set_Parity();
+	Ioctl_Baud_Ret_status   = Set_Baudrate(l_BaudRate);
+	Ioctl_Parity_Ret_status = Set_Parity(PARITY_DISABLE);
 
 
 	/* Interrupt handling */
@@ -1762,6 +1772,11 @@ ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S * p_ISO9141_1423
 	ISO9141_14230_RETCODE fl_RetCode = NO_ERROR;
 	uint8_t fl_ChkSum = CHECKSUM_OK;
 
+	/* IOCTL_Return status variables */
+	int Ioctl_Baud_Ret_status = 0;
+	int Ioctl_Parity_Ret_status = 0;
+	
+	
 	/* Switch to the appropriate Command based on the IOCtl Id */
 	/* All P and W time parameters are in us with resolution
 	   applied */
@@ -1891,7 +1906,7 @@ ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S * p_ISO9141_1423
 				/* Configure UART baud rate */
 
 				//UART_Set_Baudrate(uartFd, baudrate);
-				Set_Baudrate(l_BaudRate);
+				Ioctl_Baud_Ret_status = Set_Baudrate(l_BaudRate);
 				
 				break;
 		case LOOPBACK:
@@ -1968,15 +1983,15 @@ ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S * p_ISO9141_1423
 				
 				if (l_Parity == ODD_PARITY) {
 				
-					Set_Parity();
+					Ioctl_Parity_Ret_status = Set_Parity(PARITY_ODD);
 				}
 				else if (l_Parity == EVEN_PARITY) {
 				
-					Set_Parity();
+					Ioctl_Parity_Ret_status = Set_Parity(PARITY_EVEN);
 				}
 				else {
 				
-					Set_Parity();
+					Ioctl_Parity_Ret_status = Set_Parity(PARITY_DISABLE);
 				}
 				break;
 		case DATA_BITS:
@@ -2751,13 +2766,19 @@ void App_ErrHandler(uint32_t protocol_id, uint8_t error_code)
    
 }
 
-void Set_Baudrate(uint32_t fl_BaudRate)
+int Set_Baudrate(uint32_t fl_BaudRate)
 {
+	int fl_Ret;
+	fl_Ret = ioctl(fd,ATMEL_IOCTL_SET_KWP_BAUD ,&fl_BaudRate);
 	
+	return fl_Ret;
 }
-void Set_Parity()
+int Set_Parity(Parity_t fl_Parity)
 {
+	int fl_Ret;
+	ioctl(fd,ATMEL_IOCTL_SET_PARITY ,&fl_Parity);
 	
+	return fl_Ret;
 }
 
 

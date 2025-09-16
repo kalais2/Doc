@@ -2,8 +2,9 @@
 #define	_KWP_IF_H_
 
 #include	<glib.h>
-
 #include	"g3d.h"
+#include        "hfcp.h"
+#include        "ioctl_common.h"
 
 #include        <stdbool.h>
 /* macro */
@@ -280,6 +281,14 @@ typedef struct {
 	GIOChannel *channel;
 }UARTContext;
 
+typedef enum{
+	PARITY_DISABLE,
+	PARITY_ODD,
+	PARITY_EVEN,
+	PARITY_FORCED_HIGH,
+	PARITY_FORCED_LOW
+}Parity_t;
+	
 int kwp_init(void);
 
 void KWP_reset_TimeOut(void);
@@ -289,20 +298,16 @@ gboolean KWP_Timer_Handler(gpointer );
 
 void ISO9141_14230_RxTask(void);
 ISO9141_14230_RETCODE ISO9141_14230_WriteMsg(void);
-
 void ISO9141_14230_Init(const ISO9141_14230_Init_S *);
 ISO9141_14230_RETCODE ISO9141_14230_Command(ISO9141_14230_Cmd_S*);
-static void ISO9141_14230_LinkInit(void);
-static uint8_t ISO9141_14230_GetChecksum(const uint8_t * , uint16_t , uint8_t);
-static bool ISO9141_14230_GetParity(void);
 
 void App_FirstByteRxd(uint32_t , uint32_t );
 void PassThruReadMsgResp_KWP (void);
 void App_ErrHandler(uint32_t , uint8_t );
 void App_InitData(ISO9141_14230_LinkInitRet_S*);
 
-void Set_Baudrate(uint32_t );
-void Set_Parity();
+int Set_Baudrate(uint32_t );
+int Set_Parity(Parity_t);
 
 #endif /* _CAN_IF_H_ */
 
