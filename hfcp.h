@@ -469,9 +469,9 @@ typedef struct KWP_Enablecom {
 }PACKED KWP_Enablecomm_t;
 
 typedef struct KWP_ioctl_req {
-	uint8_t command_ID;
+	uint32_t command_ID;
 	uint8_t length;
-	uint8_t param_ID;
+	uint32_t param_ID;
 	uint32_t data;
 }PACKED KWP_ioctl_req_t;
 
@@ -611,6 +611,29 @@ union hfcpResp {
 } PACKED;
 typedef union hfcpResp hfcpResp_t;
 
+struct kwp_ioctl_resp_u {
+	uint8_t ioctl_ack;
+	uint8_t status;
+	uint8_t length;
+	uint32_t paramId;
+	uint32_t data;
+}PACKED;
+
+/* KWP Response struct */
+struct hfcpResp_kwp {
+	uint32_t resp_proto_id;
+	uint8_t resp_command;
+	union{
+		uint8_t status;		
+		struct kwp_ioctl_resp_u kwp_ioctl_resp;
+		//struct kwp_sendmsg_resp_u kwp_sendmsg_resp;
+		//struct KWP_msg_filter_resp_u kwp_msg_filter_resp;
+		//struct KWP_stpmsg_filter_resp_u kwp_stpmsg_filter_resp;
+		//struct KWP_periodic_msg_resp_u kwp_periodic_msg_resp;
+	}un;
+}PACKED;
+typedef struct hfcpResp_kwp hfcpResp_kwp_t;
+	
 /*
  * NOTE: The sizeof 'can_msg_resp_hdr_t' is 64 bytes
  * sizeof(can_msg_resp_hdr) = 4 + (3 * struct can_msg_resp_payload)

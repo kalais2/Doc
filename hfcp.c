@@ -3121,6 +3121,7 @@ void process_KWP_command(uint8_t * buffer)
 	ISO9141_14230_RETCODE fl_ISO9141_14230RetStatus;
 	uint16_t fl_IdxLen;
 	lv_t *plv;
+	hfcpResp_kwp_t * hfcpResp_kwp_buf;
 
 	/* The Length has to retained with successive Calls */
 	static uint16_t fl_KWPTX_LocalLen;
@@ -3130,14 +3131,19 @@ void process_KWP_command(uint8_t * buffer)
 	switch (command) {
 	case KWP_EnableComm:
 		{
+			#if 0
 			memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
+			
 			fl_USB_tx_data_U8A[0] = buffer[0];
 			fl_USB_tx_data_U8A[1] = buffer[1];
 			fl_USB_tx_data_U8A[2] = buffer[2];
 			fl_USB_tx_data_U8A[3] = buffer[3];
-
+			
 			fl_USB_tx_data_U8A[4] = KWP_EnableComm_ACK;
-
+			#endif
+			hfcpResp_kwp_buf->resp_proto_id = KWP_buffer->proto_id ;
+			hfcpResp_kwp_buf->resp_command = KWP_EnableComm_ACK ;
+			
 			if ((KWP_buffer->proto_id == KWP_PROTOCOL_ID)  || (KWP_buffer->proto_id == ISO_9141_PROTO_ID)) {
 
 				ISO_9141_OR_14230 = KWP_buffer->proto_id; // changed to uint32_t
@@ -3152,31 +3158,39 @@ void process_KWP_command(uint8_t * buffer)
 					/* Call the Driver Init function */
 					ISO9141_14230_Init (&fl_App_ISO9141_14230Init_S);
 					KWP_active = 1;
-					fl_USB_tx_data_U8A[5] = STATUS_NOERROR; // kwp_ch_indx
+					
+					hfcpResp_kwp_buf->un.status = STATUS_NOERROR;
+				//	fl_USB_tx_data_U8A[5] = STATUS_NOERROR; // kwp_ch_indx
 				} else {
-					fl_USB_tx_data_U8A[5] =  ERR_INVALID_FLAGS; // kwp_ch_indx
+				//	fl_USB_tx_data_U8A[5] =  ERR_INVALID_FLAGS; // kwp_ch_indx
+					hfcpResp_kwp_buf->un.status = ERR_INVALID_FLAGS;
 				}
 			} else {
 				/* ERROR: It should never enter here */
-				fl_USB_tx_data_U8A[5] = ERR_INVALID_PROTOCOL_ID;  // kwp_ch_indx
-				(void)host_write((void *) fl_USB_tx_data_U8A, 6); 
+				hfcpResp_kwp_buf->un.status = ERR_INVALID_PROTOCOL_ID;  // kwp_ch_indx
+				(void)host_write((void *) hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t)- sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.status))); 
 				break;
 			}
 			l_connected_channels++;
 			l_connected_channel_Kline = 1;
-			(void)host_write((void *)fl_USB_tx_data_U8A, 6);        
+			(void)host_write((void *) hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t)- sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.status)));        
 			break;
 		}
 
 
 	case KWP_DisableComm:
 		{
+			#if 0
 			memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
 			fl_USB_tx_data_U8A[0] = buffer[0];
 			fl_USB_tx_data_U8A[1] = buffer[1];
 			fl_USB_tx_data_U8A[2] = buffer[2];
 			fl_USB_tx_data_U8A[3] = buffer[3];
 			fl_USB_tx_data_U8A[4] = KWP_DisableComm_ACK;
+			#endif
+			hfcpResp_kwp_buf->resp_proto_id = KWP_buffer->proto_id ;
+			hfcpResp_kwp_buf->resp_command = KWP_DisableComm_ACK ;
+			
 			J2534_ClearAllFilter(KWP_PROTOCOL_ID);	//buffer[0]);
 			suspend_pmsg(KWP_PROTOCOL_ID);	//buffer[0]); /* Suspend all periodic messages */
 			ISO9141_14230_Reset();
@@ -3191,13 +3205,14 @@ void process_KWP_command(uint8_t * buffer)
 				//stop_time_stamp(timestamp_id[GARUDA_KWP_CH1]);
 			} else {
 				/* ERROR: It should never enter here */
-				fl_USB_tx_data_U8A[5] = ERR_INVALID_PROTOCOL_ID;
 				
-				(void)host_write((void *) fl_USB_tx_data_U8A, 6);
+				hfcpResp_kwp_buf->un.status = ERR_INVALID_PROTOCOL_ID;
+				
+				(void)host_write((void *) hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t) - sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.status)));
 				break;
 			}
-			fl_USB_tx_data_U8A[5] = STATUS_NOERROR;
-			(void)host_write((void *)fl_USB_tx_data_U8A, 6);
+			hfcpResp_kwp_buf->un.status = STATUS_NOERROR;
+			(void)host_write((void *) hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t) - sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.status)));
 			break;
 		}
 
@@ -3454,6 +3469,8 @@ static void process_KWP_IOCTL_cmd(uint8_t * buffer)
 	} else {
 		//fl_channel_no_U8 = 2;
 	}
+	
+	#if 0
 	memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
 
 	fl_USB_tx_data_U8A[0] = buffer[0];   //ch
@@ -3461,34 +3478,39 @@ static void process_KWP_IOCTL_cmd(uint8_t * buffer)
 	fl_USB_tx_data_U8A[2] = buffer[2];
 	fl_USB_tx_data_U8A[3] = buffer[3];
 	fl_USB_tx_data_U8A[4] = IOCTL_COMMAND;	/* IOCTL CMD ID */
-
+	#endif 
+	
+	hfcpResp_kwp_buf->resp_proto_id = KWP_buffer->proto_id ;
+	hfcpResp_kwp_buf->resp_command = IOCTL_COMMAND ;
+	
 	/* Determine the Command Structure */
 	/* Get the Ioctl ID */
-	fl_App_ISO9141_14230Cmd_S.IOCtlId = KWP_buffer->u.kwp_ioctl_req.command_ID;  //ch
+	fl_App_ISO9141_14230Cmd_S.IOCtlId = KWP_buffer->u.kwp_ioctl_req.command_ID;  //ch  
 	/*Length data ( Only for Fivebaud and Fast Init) */
 	fl_App_ISO9141_14230Cmd_S.Length = KWP_buffer->u.kwp_ioctl_req.length;  //ch
 
 	/* Clear All Periodic Messages Command */
 	if (clear_all_periodic_msgs == fl_App_ISO9141_14230Cmd_S.IOCtlId) {
-		fl_USB_tx_data_U8A[5] = clear_all_periodic_msgs_ACK; //ch
+		//fl_USB_tx_data_U8A[5] = clear_all_periodic_msgs_ACK; //ch
+		hfcpResp_kwp_buf->un.kwp_ioctl_resp.ioctl_ack = clear_all_periodic_msgs_ACK;
 		suspend_pmsg(KWP_PROTOCOL_ID);	// buffer[0]);
 		/* Suspend all periodic messages */
-		fl_USB_tx_data_U8A[6] = STATUS_NOERROR;	/* Error status */   //ch
+		hfcpResp_kwp_buf->un.kwp_ioctl_resp.status = STATUS_NOERROR;	/* Error status */   //ch
 		//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],4,DONT_RELEASE);
-		(void)host_write((void *)fl_USB_tx_data_U8A, 7);
+		(void)host_write((void *)hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t) - sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.kwp_ioctl_resp)));
 	}
 	/* Clear All Message Filters Command */
 	else if (clear_all_msg_filters == fl_App_ISO9141_14230Cmd_S.IOCtlId) {
 
-		fl_USB_tx_data_U8A[5] = clear_all_msg_filters_ACK;	/* ACK for Clear All Filters */  //ch
+		hfcpResp_kwp_buf->un.kwp_ioctl_resp.ioctl_ack = clear_all_msg_filters_ACK;	/* ACK for Clear All Filters */  //ch
 		fl_filt_stopAll_status = J2534_ClearAllFilter(KWP_PROTOCOL_ID);	//buffer[0]);
 		if (fl_filt_stopAll_status == J2534_NO_ERROR) {
-			fl_USB_tx_data_U8A[6] = STATUS_NOERROR;	/* Status No_ERROR */    //ch
+			hfcpResp_kwp_buf->un.kwp_ioctl_resp.status = STATUS_NOERROR;	/* Status No_ERROR */    //ch
 		} else {
-			fl_USB_tx_data_U8A[6] = ERR_FAILED;	/* Failed due to Wrong Protocol ID */  //ch
+			hfcpResp_kwp_buf->un.kwp_ioctl_resp.status = ERR_FAILED;	/* Failed due to Wrong Protocol ID */  //ch
 		}
 		//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],4,DONT_RELEASE);
-		(void)host_write((void *)fl_USB_tx_data_U8A, 7);
+		(void)host_write((void *)hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t) - sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.kwp_ioctl_resp)));
 	} else {
 		/* Determine if the IOCtl is GET_CONFIG or SET_CONFIG to check for param id and param val */
 		if ((fl_App_ISO9141_14230Cmd_S.IOCtlId == GET_CONFIG)  || (fl_App_ISO9141_14230Cmd_S.IOCtlId == SET_CONFIG)) {
@@ -3511,31 +3533,34 @@ static void process_KWP_IOCTL_cmd(uint8_t * buffer)
 		fl_ISO9141_14230RetStatus =  ISO9141_14230_Command(&fl_App_ISO9141_14230Cmd_S);
 
 		/* Determine the response */
-		fl_USB_tx_data_U8A[5] = fl_App_ISO9141_14230Cmd_S.IOCtlId;  //ch
-		fl_USB_tx_data_U8A[7] = fl_App_ISO9141_14230Cmd_S.Length;   //ch
+		hfcpResp_kwp_buf->un.kwp_ioctl_resp.ioctl_ack = fl_App_ISO9141_14230Cmd_S.IOCtlId;  //ch
+		hfcpResp_kwp_buf->un.kwp_ioctl_resp.length = fl_App_ISO9141_14230Cmd_S.Length;   //ch
 
 		/* For Get / Set Config copy the Parameter value and Id to the
 		   Response frame */
 		if ((fl_App_ISO9141_14230Cmd_S.IOCtlId == GET_CONFIG) || (fl_App_ISO9141_14230Cmd_S.IOCtlId == SET_CONFIG)) {
 		
-			fl_USB_tx_data_U8A[8] = fl_App_ISO9141_14230Cmd_S.ParamId;                      //ch
+			hfcpResp_kwp_buf->un.kwp_ioctl_resp.paramId = fl_App_ISO9141_14230Cmd_S.ParamId;                      //ch
 		
 			if (fl_App_ISO9141_14230Cmd_S.IOCtlId == GET_CONFIG) {
 			
+				hfcpResp_kwp_buf->un.kwp_ioctl_resp.data = fl_KWP_par_val_U32 ;
+				#if 0
 				fl_USB_tx_data_U8A[9]  = (uint8_t) ((fl_KWP_par_val_U32) & 0xFF);       //ch
 				fl_USB_tx_data_U8A[10] = (uint8_t) ((fl_KWP_par_val_U32 >> 8) & 0xFF);  //ch
 				fl_USB_tx_data_U8A[11] = (uint8_t) ((fl_KWP_par_val_U32 >>16) & 0xFF);  //ch
 				fl_USB_tx_data_U8A[12] = (uint8_t) ((fl_KWP_par_val_U32 >>24) & 0xFF);  //ch
+				#endif
 			}
 		}
 
 		/* Update the Error Code based on the return */
 		if (fl_ISO9141_14230RetStatus == NO_ERROR) {
-			fl_USB_tx_data_U8A[6] = STATUS_NOERROR;                    //ch
+			hfcpResp_kwp_buf->un.kwp_ioctl_resp.status = STATUS_NOERROR;                    //ch
 		} else if (fl_ISO9141_14230RetStatus == INVALID_COMMAND) {
-			fl_USB_tx_data_U8A[6] = ERR_INVALID_IOCTL_ID;              //ch
+			hfcpResp_kwp_buf->un.kwp_ioctl_resp.status = ERR_INVALID_IOCTL_ID;              //ch
 		} else if (fl_ISO9141_14230RetStatus == INVALID_PARAMETERID) {
-			fl_USB_tx_data_U8A[6] = ERR_FAILED;                        //ch
+			hfcpResp_kwp_buf->un.kwp_ioctl_resp.status = ERR_FAILED;                        //ch
 		} else {
 			/* Do nothing */
 		}
@@ -3543,7 +3568,7 @@ static void process_KWP_IOCTL_cmd(uint8_t * buffer)
 		/* Send the Response only if its not FAST INIT ot FIVE BAUD INIT */
 		if ((fl_App_ISO9141_14230Cmd_S.IOCtlId != FAST_INIT) && (fl_App_ISO9141_14230Cmd_S.IOCtlId != FIVE_BAUD_INIT)) {
 			//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],10,DONT_RELEASE);
-			(void)host_write((void *) fl_USB_tx_data_U8A, 13);
+			(void)host_write((void *)hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t) - sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.kwp_ioctl_resp)));
 		}
 	}
 }
