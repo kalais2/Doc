@@ -3121,12 +3121,21 @@ void process_KWP_command(uint8_t * buffer)
 	ISO9141_14230_RETCODE fl_ISO9141_14230RetStatus;
 	uint16_t fl_IdxLen;
 	lv_t *plv;
-	hfcpResp_kwp_t * hfcpResp_kwp_buf;
+	/*hfcpResp_kwp_t hfcpResp_kwp;
+	hfcpResp_kwp_t * hfcpResp_kwp_buf = &hfcpResp_kwp;*/
+	
+	hfcpResp_kwp_t * hfcpResp_kwp_buf = (hfcpResp_kwp_t*)malloc(sizeof(hfcpResp_kwp_t));
+	
+	if (hfcpResp_kwp_buf == NULL) {
+		DBG("malloc failed");
+		return;
+	}
 
 	/* The Length has to retained with successive Calls */
 	static uint16_t fl_KWPTX_LocalLen;
 
 	command = KWP_buffer->command;
+	hfcpResp_kwp_buf->resp_proto_id = KWP_buffer->proto_id ;
 
 	switch (command) {
 	case KWP_EnableComm:
@@ -3141,7 +3150,7 @@ void process_KWP_command(uint8_t * buffer)
 			
 			fl_USB_tx_data_U8A[4] = KWP_EnableComm_ACK;
 			#endif
-			hfcpResp_kwp_buf->resp_proto_id = KWP_buffer->proto_id ;
+			
 			hfcpResp_kwp_buf->resp_command = KWP_EnableComm_ACK ;
 			
 			if ((KWP_buffer->proto_id == KWP_PROTOCOL_ID)  || (KWP_buffer->proto_id == ISO_9141_PROTO_ID)) {
@@ -3188,7 +3197,7 @@ void process_KWP_command(uint8_t * buffer)
 			fl_USB_tx_data_U8A[3] = buffer[3];
 			fl_USB_tx_data_U8A[4] = KWP_DisableComm_ACK;
 			#endif
-			hfcpResp_kwp_buf->resp_proto_id = KWP_buffer->proto_id ;
+			//hfcpResp_kwp_buf->resp_proto_id = KWP_buffer->proto_id ;
 			hfcpResp_kwp_buf->resp_command = KWP_DisableComm_ACK ;
 			
 			J2534_ClearAllFilter(KWP_PROTOCOL_ID);	//buffer[0]);
@@ -3253,7 +3262,7 @@ void process_KWP_command(uint8_t * buffer)
 						} else {
 							/* Do Nothing */
 						}
-
+						
 						/* MArk the Flag = NO Segmented Transfer */
 					//	l_KWPTX_SegTrnsfr = 0;
 						
@@ -3261,22 +3270,31 @@ void process_KWP_command(uint8_t * buffer)
 						fl_ISO9141_14230RetStatus = ISO9141_14230_WriteMsg();
 
 						/* Determine the Response */
-						memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
+					/*       memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
 						
 						    
-						 fl_USB_tx_data_U8A[0] = buffer[0];
+					         fl_USB_tx_data_U8A[0] = buffer[0];
 						 fl_USB_tx_data_U8A[1] = buffer[1];
 						 fl_USB_tx_data_U8A[2] = buffer[2];
 						 fl_USB_tx_data_U8A[3] = buffer[3];
 						 fl_USB_tx_data_U8A[4] = KWP_Send_msg_ACK;
-						 fl_USB_tx_data_U8A[5] = KWP_buffer->u.kwp_sndmsg.seg_num;
+						 fl_USB_tx_data_U8A[5] = KWP_buffer->u.kwp_sndmsg.seg_num; */
+					
+					
+						hfcpResp_kwp_buf->resp_command = KWP_Send_msg_ACK;
+						hfcpResp_kwp_buf->un.kwp_sendmsg_resp.seg_num = KWP_buffer->u.kwp_sndmsg.seg_num;
 						 
 						/* Update time stamp on USB TX Frame */ // Doubt because timestamp updated by local structure at write msg 
 						//current_time_stamp = ISO9141_14230_TxMsg_S_Buffer.Timestamp; //Need to check
+						
+						#if 0
 						fl_USB_tx_data_U8A[7] = (uint8_t) ((current_time_stamp) & 0xFF);
 						fl_USB_tx_data_U8A[8] = (uint8_t) ((current_time_stamp >> 8) & 0xFF);
 						fl_USB_tx_data_U8A[9] = (uint8_t) ((current_time_stamp >> 16) & 0xFF);
 						fl_USB_tx_data_U8A[10] = (uint8_t) ((current_time_stamp >> 24) & 0xFF);
+						#endif
+						
+						hfcpResp_kwp_buf->un.kwp_sendmsg_resp.timestamp = current_time_stamp;
 
 						/* Update the Error Code based on the return */
 						/*if (fl_ISO9141_14230RetStatus == ISO9141_14230_TXQ_FULL) {
@@ -3285,8 +3303,9 @@ void process_KWP_command(uint8_t * buffer)
 						else {
 							fl_USB_tx_data_U8A[6] = STATUS_NOERROR;
 						}*/
-						
-						(void)host_write((void *)fl_USB_tx_data_U8A, 11); // size needs to check 
+						hfcpResp_kwp_buf->un.kwp_sendmsg_resp.status = STATUS_NOERROR;
+						//(void)host_write((void *)fl_USB_tx_data_U8A, 11); // size needs to check 
+						(void)host_write((void *) hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t) - sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.kwp_sendmsg_resp)));
 			
 				}
 			
@@ -3296,6 +3315,7 @@ void process_KWP_command(uint8_t * buffer)
 			} else {
 				/* ERROR: It should never enter here */
 	
+				#if 0
 				fl_USB_tx_data_U8A[0] = buffer[0];
 				fl_USB_tx_data_U8A[1] = buffer[1];
 				fl_USB_tx_data_U8A[2] = buffer[2];
@@ -3303,8 +3323,15 @@ void process_KWP_command(uint8_t * buffer)
 				fl_USB_tx_data_U8A[4] = KWP_Send_msg_ACK;
 				fl_USB_tx_data_U8A[5] = KWP_buffer->u.kwp_sndmsg.seg_num;
 				fl_USB_tx_data_U8A[6] = ERR_INVALID_PROTOCOL_ID;
+				#endif 
 				
-				(void)host_write((void *)fl_USB_tx_data_U8A, 7);
+				hfcpResp_kwp_buf->resp_command = KWP_Send_msg_ACK;
+				hfcpResp_kwp_buf->un.kwp_sendmsg_resp.seg_num = KWP_buffer->u.kwp_sndmsg.seg_num;
+				hfcpResp_kwp_buf->un.kwp_sendmsg_resp.status = ERR_INVALID_PROTOCOL_ID;
+				
+				//(void)host_write((void *)fl_USB_tx_data_U8A, 7);
+				(void)host_write((void *) hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t) - sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.kwp_sendmsg_resp)));
+			
 			}
 			break;
 		}
@@ -3339,7 +3366,7 @@ void process_KWP_command(uint8_t * buffer)
 			} else {
 				fl_status_U8 = ERR_FAILED;
 			}
-			memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
+		/*	memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
 			fl_USB_tx_data_U8A[0] = buffer[0];
 			fl_USB_tx_data_U8A[1] = buffer[1];
 			fl_USB_tx_data_U8A[2] = buffer[2];
@@ -3349,8 +3376,16 @@ void process_KWP_command(uint8_t * buffer)
 			fl_USB_tx_data_U8A[6] = fl_FilterID;
 			//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],5,DONT_RELEASE);
 			(void)host_write((void *)fl_USB_tx_data_U8A, 7);
+		*/
+			hfcpResp_kwp_buf->resp_command = Start_msg_filter_ACK;
+			hfcpResp_kwp_buf->un.kwp_msg_filter_resp.status = fl_status_U8;
+			hfcpResp_kwp_buf->un.kwp_msg_filter_resp.filterid = fl_FilterID;
+			
+			(void)host_write((void *) hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t) - sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.kwp_msg_filter_resp)));	
+		
+		
 		} else {
-			memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
+		/*	memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
 			fl_USB_tx_data_U8A[0] = buffer[0];
 			fl_USB_tx_data_U8A[1] = buffer[1];
 			fl_USB_tx_data_U8A[2] = buffer[2];
@@ -3359,7 +3394,15 @@ void process_KWP_command(uint8_t * buffer)
 			fl_USB_tx_data_U8A[5] = STATUS_NOERROR;
 			fl_USB_tx_data_U8A[6] = fl_FilterID;
 			//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],5,DONT_RELEASE);
-			(void)host_write((void *) fl_USB_tx_data_U8A, 7);
+			(void)host_write((void *) fl_USB_tx_data_U8A, 7); */
+			
+			hfcpResp_kwp_buf->resp_command = Start_msg_filter_ACK;
+			hfcpResp_kwp_buf->un.kwp_msg_filter_resp.status = STATUS_NOERROR;
+			hfcpResp_kwp_buf->un.kwp_msg_filter_resp.filterid = fl_FilterID;
+			
+			(void)host_write((void *) hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t) - sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.kwp_msg_filter_resp)));	
+		
+		
 		}
 		break;
 		
@@ -3380,7 +3423,7 @@ void process_KWP_command(uint8_t * buffer)
 			} else {
 				fl_status_U8 = ERR_FAILED;
 			}
-			memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
+			/*memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
 			fl_USB_tx_data_U8A[0] = buffer[0];
 			fl_USB_tx_data_U8A[1] = buffer[1];
 			fl_USB_tx_data_U8A[2] = buffer[2];
@@ -3389,9 +3432,17 @@ void process_KWP_command(uint8_t * buffer)
 			fl_USB_tx_data_U8A[5] = fl_status_U8;
 			fl_USB_tx_data_U8A[6] = fl_FilterID;
 			//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],4,DONT_RELEASE);
-			(void)host_write((void *)fl_USB_tx_data_U8A, 7);
+			(void)host_write((void *)fl_USB_tx_data_U8A, 7);*/
+			
+			hfcpResp_kwp_buf->resp_command = Stop_msg_filter_ACK;
+			hfcpResp_kwp_buf->un.kwp_stpmsg_filter_resp.status = fl_status_U8;
+			hfcpResp_kwp_buf->un.kwp_stpmsg_filter_resp.filterid = fl_FilterID;
+			
+			(void)host_write((void *) hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t) - sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.kwp_stpmsg_filter_resp)));	
+		
+			
 		} else {
-			memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
+			/*memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
 			fl_USB_tx_data_U8A[0] = buffer[0];
 			fl_USB_tx_data_U8A[1] = buffer[1];
 			fl_USB_tx_data_U8A[2] = buffer[2];
@@ -3400,7 +3451,14 @@ void process_KWP_command(uint8_t * buffer)
 			fl_USB_tx_data_U8A[5] = STATUS_NOERROR;
 			fl_USB_tx_data_U8A[6] = fl_FilterID;
 			//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],4,DONT_RELEASE);
-			(void)host_write((void *)fl_USB_tx_data_U8A, 7);
+			(void)host_write((void *)fl_USB_tx_data_U8A, 7);*/
+			
+			hfcpResp_kwp_buf->resp_command = Stop_msg_filter_ACK;
+			hfcpResp_kwp_buf->un.kwp_stpmsg_filter_resp.status = STATUS_NOERROR;
+			hfcpResp_kwp_buf->un.kwp_stpmsg_filter_resp.filterid = fl_FilterID;
+			
+			(void)host_write((void *) hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t) - sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.kwp_stpmsg_filter_resp)));	
+			
 		}
 		break;
 
@@ -3432,7 +3490,7 @@ void process_KWP_command(uint8_t * buffer)
 			fl_status_U8 = ERR_FAILED;
 		}
 		/* Send Acknowledgement to J2534 DLL */
-		memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
+		/*memset(&fl_USB_tx_data_U8A, 0, IN_BUFFER_SIZE);
 		fl_USB_tx_data_U8A[0] = buffer[0];
 		fl_USB_tx_data_U8A[1] = buffer[1];
 		fl_USB_tx_data_U8A[2] = buffer[2];
@@ -3441,7 +3499,15 @@ void process_KWP_command(uint8_t * buffer)
 		fl_USB_tx_data_U8A[5] = fl_status_U8;
 		fl_USB_tx_data_U8A[6] = j2534_periodic_msg.prmsg_id;
 		//(void)Garuda_Tx_data_on_USB(&fl_USB_tx_data_U8A[0],4,DONT_RELEASE);
-		(void)host_write((void *)fl_USB_tx_data_U8A, 7);
+		(void)host_write((void *)fl_USB_tx_data_U8A, 7);*/
+		
+		hfcpResp_kwp_buf->resp_command = handle_periodic_msg_ACK;
+		hfcpResp_kwp_buf->un.kwp_periodic_msg_resp.status = fl_status_U8;
+		hfcpResp_kwp_buf->un.kwp_periodic_msg_resp.per_msg_id = j2534_periodic_msg.prmsg_id;
+			
+		(void)host_write((void *) hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t) - sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.kwp_periodic_msg_resp)));	
+			
+		
 		break;
 
 	default:
@@ -3460,6 +3526,18 @@ static void process_KWP_IOCTL_cmd(uint8_t * buffer)
 	J2534_stError_t fl_filt_stopAll_status;
 	ISO9141_14230_Cmd_S fl_App_ISO9141_14230Cmd_S;
 	ISO9141_14230_RETCODE fl_ISO9141_14230RetStatus = NO_ERROR;
+	
+	
+	/*hfcpResp_kwp_t hfcpResp_kwp;
+	hfcpResp_kwp_t * hfcpResp_kwp_buf = &hfcpResp_kwp;*/
+	
+	hfcpResp_kwp_t * hfcpResp_kwp_buf = (hfcpResp_kwp_t*)malloc(sizeof(hfcpResp_kwp_t));
+	
+	if (hfcpResp_kwp_buf == NULL) {
+		DBG("malloc failed");
+		return;
+	}
+
 
 	//uint8_t  fl_channel_no_U8;  
 
@@ -3536,9 +3614,9 @@ static void process_KWP_IOCTL_cmd(uint8_t * buffer)
 		hfcpResp_kwp_buf->un.kwp_ioctl_resp.ioctl_ack = fl_App_ISO9141_14230Cmd_S.IOCtlId;  //ch
 		hfcpResp_kwp_buf->un.kwp_ioctl_resp.length = fl_App_ISO9141_14230Cmd_S.Length;   //ch
 
-		/* For Get / Set Config copy the Parameter value and Id to the
-		   Response frame */
+		/* For Get / Set Config copy the Parameter value and Id to the Response frame */
 		if ((fl_App_ISO9141_14230Cmd_S.IOCtlId == GET_CONFIG) || (fl_App_ISO9141_14230Cmd_S.IOCtlId == SET_CONFIG)) {
+		  
 		
 			hfcpResp_kwp_buf->un.kwp_ioctl_resp.paramId = fl_App_ISO9141_14230Cmd_S.ParamId;                      //ch
 		

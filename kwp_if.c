@@ -2537,6 +2537,13 @@ void PassThruReadMsgResp_KWP (void)
     uint8_t fl_USB_tx_data_U8A[512] ;
     uint16_t fl_IdxLen;
     uint32_t current_time_stamp = 0;
+    
+    hfcpResp_kwp_t * hfcpResp_kwp_buf = (hfcpResp_kwp_t*)malloc(sizeof(hfcpResp_kwp_t));
+	
+    if (hfcpResp_kwp_buf == NULL) {
+	DBG("malloc failed");
+	return;
+    }
 
     if(0 == fl_KWPRX_SegNo)
     {
@@ -2548,16 +2555,22 @@ void PassThruReadMsgResp_KWP (void)
         {
             /* Determine the Response */
             //fl_USB_tx_data_U8A[0] = get_ISO9141_or_14230();//HFCP.c
-            fl_USB_tx_data_U8A[0]= (l_ProtocolId >> 0) & 0xFF;
+            /*fl_USB_tx_data_U8A[0]= (l_ProtocolId >> 0) & 0xFF;
             fl_USB_tx_data_U8A[1]= (l_ProtocolId >> 8) & 0xFF;
             fl_USB_tx_data_U8A[2]= (l_ProtocolId >> 16) & 0xFF;
             fl_USB_tx_data_U8A[3]= (l_ProtocolId >> 24) & 0xFF;
             fl_USB_tx_data_U8A[4] = KWP_Receive_msg;
             fl_USB_tx_data_U8A[5] = fl_KWPRX_SegNo;
-            fl_USB_tx_data_U8A[6] = STATUS_NOERROR;
+            fl_USB_tx_data_U8A[6] = STATUS_NOERROR;*/
+            
+            hfcpResp_kwp_buf->resp_proto_id = l_ProtocolId;
+            hfcpResp_kwp_buf->resp_command = KWP_Receive_msg;
+            hfcpResp_kwp_buf->un.kwp_passthru_rmsg_resp.seg_num = fl_KWPRX_SegNo;
+            hfcpResp_kwp_buf->un.kwp_passthru_rmsg_resp.status = STATUS_NOERROR;
+            
 
             /* Store the read message */
-            fl_USB_tx_data_U8A[7] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Length )      & 0xFF);
+            /*fl_USB_tx_data_U8A[7] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Length )      & 0xFF);
             fl_USB_tx_data_U8A[8] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Length >> 8)  & 0xFF);
 
             fl_USB_tx_data_U8A[9] = (uint8_t)((ISO9141_14230_RxMsg_S_Buffer.Flags )      & 0xFF);
@@ -2569,7 +2582,13 @@ void PassThruReadMsgResp_KWP (void)
             fl_USB_tx_data_U8A[13] = (uint8_t)((current_time_stamp )      & 0xFF);
             fl_USB_tx_data_U8A[14] = (uint8_t)((current_time_stamp >> 8)  & 0xFF);
             fl_USB_tx_data_U8A[15] = (uint8_t)((current_time_stamp >> 16) & 0xFF);
-            fl_USB_tx_data_U8A[16] = (uint8_t)((current_time_stamp >> 24) & 0xFF);
+            fl_USB_tx_data_U8A[16] = (uint8_t)((current_time_stamp >> 24) & 0xFF); */
+            
+            hfcpResp_kwp_buf->un.kwp_passthru_rmsg_resp.length = ISO9141_14230_RxMsg_S_Buffer.Length;
+            hfcpResp_kwp_buf->un.kwp_passthru_rmsg_resp.flags = ISO9141_14230_RxMsg_S_Buffer.Flags;
+            hfcpResp_kwp_buf->un.kwp_passthru_rmsg_resp.timestamp = ISO9141_14230_RxMsg_S_Buffer.Timestamp;
+            
+            
             /* Make the Local Length as 0 As it first frame*/
             fl_KWPRX_LocalLen = 0;
             /* 50 bytes of Space in this USB Frame */
@@ -2600,7 +2619,8 @@ void PassThruReadMsgResp_KWP (void)
 		memset((void*)&ISO9141_14230_RxMsg_S_Buffer,0,sizeof(ISO9141_14230_RxMsg_S_Buffer)) ;
            // }
            
-            (void)host_write((void *)fl_USB_tx_data_U8A, 512);
+           // (void)host_write((void *)fl_USB_tx_data_U8A, 512);
+	   (void)host_write((void *) hfcpResp_kwp_buf, ((sizeof(hfcpResp_kwp_t) - sizeof(hfcpResp_kwp_buf->un)) + sizeof(hfcpResp_kwp_buf->un.kwp_passthru_rmsg_resp)));	
        
         }
     }

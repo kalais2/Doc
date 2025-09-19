@@ -611,7 +611,7 @@ union hfcpResp {
 } PACKED;
 typedef union hfcpResp hfcpResp_t;
 
-struct kwp_ioctl_resp_u {
+struct KWP_ioctl_resp_u {
 	uint8_t ioctl_ack;
 	uint8_t status;
 	uint8_t length;
@@ -619,21 +619,51 @@ struct kwp_ioctl_resp_u {
 	uint32_t data;
 }PACKED;
 
+struct KWP_sendmsg_resp_u {
+	uint8_t seg_num;
+	uint8_t status;
+	uint32_t timestamp;
+}PACKED;
+
+struct KWP_msg_filter_resp_u {
+	uint8_t status;
+	uint16_t filterid;
+} PACKED;
+
+struct KWP_stpmsg_filter_resp_u {
+	uint8_t status;
+	uint16_t filterid;
+} PACKED;
+
+struct KWP_periodic_msg_resp_u {
+	uint8_t status;
+	uint16_t per_msg_id;
+} PACKED;
+
+struct KWP_passthru_rmsg_resp_u {
+	uint8_t seg_num;
+	uint8_t status;
+	uint16_t length;
+	uint32_t flags;
+	uint32_t timestamp;
+} PACKED;
+
 /* KWP Response struct */
 struct hfcpResp_kwp {
 	uint32_t resp_proto_id;
 	uint8_t resp_command;
 	union{
 		uint8_t status;		
-		struct kwp_ioctl_resp_u kwp_ioctl_resp;
-		//struct kwp_sendmsg_resp_u kwp_sendmsg_resp;
-		//struct KWP_msg_filter_resp_u kwp_msg_filter_resp;
-		//struct KWP_stpmsg_filter_resp_u kwp_stpmsg_filter_resp;
-		//struct KWP_periodic_msg_resp_u kwp_periodic_msg_resp;
+		struct KWP_ioctl_resp_u kwp_ioctl_resp;
+		struct KWP_sendmsg_resp_u kwp_sendmsg_resp;
+		struct KWP_msg_filter_resp_u kwp_msg_filter_resp;
+		struct KWP_stpmsg_filter_resp_u kwp_stpmsg_filter_resp;
+		struct KWP_periodic_msg_resp_u kwp_periodic_msg_resp;
+		struct KWP_passthru_rmsg_resp_u kwp_passthru_rmsg_resp;
 	}un;
 }PACKED;
-typedef struct hfcpResp_kwp hfcpResp_kwp_t;
 	
+typedef struct hfcpResp_kwp hfcpResp_kwp_t;	
 /*
  * NOTE: The sizeof 'can_msg_resp_hdr_t' is 64 bytes
  * sizeof(can_msg_resp_hdr) = 4 + (3 * struct can_msg_resp_payload)

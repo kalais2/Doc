@@ -227,12 +227,12 @@ extern ISO9141_14230_TxMsg_S ISO9141_14230_TxMsg_S_Buffer;
 
 /* Command Structure */
 typedef struct {
-	uint32_t *pData;	/* Read / Write Address of the
-				   command data for the
-				   corresponding IOCtl */
-	uint16_t Length;	/* Length of the Command data */
-	uint8_t IOCtlId;	/* IOCtl Id */
-	uint8_t ParamId;	/* Parameter Id for the IOCtl */
+	uint32_t IOCtlId;	/* IOCtl Id */
+	uint32_t ParamId;	        /* Parameter Id for the IOCtl */
+	uint32_t *pData;		/* Read / Write Address of the
+				   	command data for the
+				   	corresponding IOCtl */
+	uint8_t Length;			/* Length of the Command data */	
 
 } ISO9141_14230_Cmd_S;
 
